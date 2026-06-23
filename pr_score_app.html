@@ -3,686 +3,1017 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PR Score — Automação Loft</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <title>PR Score — Loft</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { background: #f9fafb; }
-    .drop-active { border-color: #FF6B35 !important; background: #fff7f4 !important; }
-    .progress-fill { transition: width 0.4s ease; }
-    pre { white-space: pre-wrap; word-break: break-all; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #FF6B35;
+      --orange-dim: #cc5420;
+      --orange-glow: rgba(255,107,53,0.18);
+      --bg: #0B0B0B;
+      --surface: #161616;
+      --surface2: #1E1E1E;
+      --border: #2C2C2C;
+      --border-hi: #3C3C3C;
+      --text: #F2F2F2;
+      --text-muted: #888;
+      --text-dim: #555;
+      --green: #22C55E;
+      --red: #EF4444;
+      --blue: #3B82F6;
+      --radius: 12px;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.6; }
+
+    .app { min-height: 100vh; display: flex; flex-direction: column; }
+
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex; align-items: center; gap: 16px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-mark {
+      width: 34px; height: 34px; background: var(--orange); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 800; color: #fff; font-family: 'Space Grotesk', sans-serif;
+    }
+    .logo-text { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 15px; }
+    .logo-sub { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .api-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 5px 12px; font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+    .api-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+    .api-badge.ok .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+    .main { flex: 1; display: grid; grid-template-columns: 260px 1fr; max-width: 1240px; margin: 0 auto; width: 100%; padding: 32px 24px; gap: 32px; }
+
+    .sidebar { position: sticky; top: 84px; align-self: start; }
+    .steps { display: flex; flex-direction: column; gap: 4px; }
+    .step {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px; border-radius: var(--radius); cursor: default; transition: background .15s;
+    }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; color: var(--text-dim);
+      flex-shrink: 0; transition: all .2s; background: var(--bg);
+    }
+    .step.active .step-num { border-color: var(--orange); color: var(--orange); background: var(--orange-glow); box-shadow: 0 0 0 3px var(--orange-glow); }
+    .step.done .step-num { border-color: var(--green); background: var(--green); color: #fff; font-size: 14px; }
+    .step-label { font-size: 13px; font-weight: 500; color: var(--text-muted); transition: color .2s; }
+    .step.active .step-label { color: var(--text); }
+    .step-connector { width: 2px; height: 20px; background: var(--border); margin: 2px 0 2px 26px; border-radius: 1px; }
+    .step-connector.done { background: var(--green); }
+
+    .content { min-width: 0; }
+    .panel { display: none; }
+    .panel.active { display: block; animation: fadeIn .25s ease; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform:none; } }
+
+    .panel-title { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .panel-subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 28px; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+    .card-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 14px; }
+
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+    .field input[type=text], .field input[type=password], .field input[type=date] {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px; font-family: inherit;
+      outline: none; transition: border-color .15s;
+    }
+    .field input:focus { border-color: var(--orange); }
+    .field .hint { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
+    .field a { color: var(--orange); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px; border-radius: 8px; border: none;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: all .15s; font-family: inherit;
+    }
+    .btn-primary { background: var(--orange); color: #fff; }
+    .btn-primary:hover { background: #ff8055; transform: translateY(-1px); box-shadow: 0 4px 16px var(--orange-glow); }
+    .btn-primary:active { transform: none; }
+    .btn-primary:disabled { background: #555; color: #999; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border-hi); }
+    .btn-outline:hover { border-color: var(--orange); color: var(--orange); background: var(--orange-glow); }
+    .btn-lg { padding: 14px 28px; font-size: 15px; }
+    .btn-sm { padding: 7px 14px; font-size: 12px; }
+
+    .dropzone {
+      border: 2px dashed var(--border-hi); border-radius: var(--radius);
+      padding: 40px 24px; text-align: center; cursor: pointer;
+      transition: all .2s; background: var(--surface2);
+    }
+    .dropzone:hover, .dropzone.drag-over { border-color: var(--orange); background: var(--orange-glow); }
+    .dropzone.has-file { border-color: var(--green); border-style: solid; background: rgba(34,197,94,.08); }
+    .dropzone-icon { font-size: 36px; margin-bottom: 10px; }
+    .dropzone-text { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .dropzone-sub { font-size: 13px; color: var(--text-muted); }
+    .dropzone input[type=file] { display: none; }
+
+    .progress-wrap { margin-bottom: 24px; }
+    .progress-bar-outer { background: var(--surface2); border-radius: 100px; height: 6px; overflow: hidden; }
+    .progress-bar-inner { background: var(--orange); height: 100%; border-radius: 100px; transition: width .4s ease; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+    .log-box {
+      background: #0D0D0D; border: 1px solid var(--border); border-radius: 8px;
+      padding: 16px; height: 260px; overflow-y: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.7;
+    }
+    .log-line { display: flex; gap: 10px; }
+    .log-line .ts { color: var(--text-dim); flex-shrink: 0; }
+    .log-line.ok .msg { color: #4ade80; }
+    .log-line.warn .msg { color: #facc15; }
+    .log-line.err .msg { color: #f87171; }
+    .log-line .msg { color: #ccc; }
+
+    .stats-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    .stat-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; min-width: 100px; }
+    .stat-chip .val { font-size: 22px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+    .stat-chip .lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .stat-chip.orange .val { color: var(--orange); }
+    .stat-chip.green .val { color: var(--green); }
+    .stat-chip.red .val { color: var(--red); }
+    .stat-chip.blue .val { color: var(--blue); }
+
+    .table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: var(--surface2); }
+    thead th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface2); }
+    tbody td { padding: 10px 14px; font-size: 13px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 100px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: rgba(34,197,94,.15); color: #4ade80; }
+    .badge-orange { background: var(--orange-glow); color: var(--orange); }
+    .badge-gray { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+    .badge-red { background: rgba(239,68,68,.15); color: #f87171; }
+    .badge-yellow { background: rgba(250,204,21,.15); color: #fbbf24; }
+
+    .validation-box { display: flex; gap: 16px; flex-wrap: wrap; }
+    .val-btn-card {
+      flex: 1; min-width: 220px; border-radius: var(--radius); padding: 28px 24px;
+      text-align: center; cursor: pointer; transition: all .2s;
+      border: 2px solid var(--border); background: var(--surface2);
+    }
+    .val-btn-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+    .val-btn-card.approve { border-color: var(--green); }
+    .val-btn-card.approve:hover { background: rgba(34,197,94,.08); }
+    .val-btn-card.reject { border-color: #f59e0b; }
+    .val-btn-card.reject:hover { background: rgba(245,158,11,.08); }
+    .val-btn-card .icon { font-size: 42px; margin-bottom: 12px; }
+    .val-btn-card .label { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .val-btn-card .desc { font-size: 13px; color: var(--text-muted); }
+
+    .output-section { margin-bottom: 32px; }
+    .output-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .output-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .wa-box {
+      background: #075E54; border-radius: 12px; padding: 20px;
+      font-family: 'Inter', sans-serif; white-space: pre-wrap; font-size: 14px; line-height: 1.6;
+      color: #fff; max-height: 320px; overflow-y: auto;
+    }
+    .email-preview { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .email-preview iframe { width: 100%; height: 440px; border: none; background: #fff; }
+
+    .copy-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); }
+    .copy-btn:hover { border-color: var(--orange); color: var(--orange); }
+    .copy-btn.copied { border-color: var(--green); color: var(--green); }
+
+    .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .score-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; text-align: center; }
+    .score-card .company { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .score-card .pts { font-size: 32px; font-weight: 800; font-family: 'Space Grotesk', sans-serif; }
+    .score-card .pts-label { font-size: 11px; color: var(--text-muted); }
+
+    .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+    .alert-green { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3); color: #86efac; }
+    .alert-orange { background: var(--orange-glow); border: 1px solid rgba(255,107,53,.3); color: #ffd0b5; }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+    .mb-8 { margin-bottom: 8px; }
+    .mb-16 { margin-bottom: 16px; }
+    .mb-24 { margin-bottom: 24px; }
+    .flex { display: flex; }
+    .gap-8 { gap: 8px; }
+    .gap-12 { gap: 12px; }
+    .items-center { align-items: center; }
+    .text-muted { color: var(--text-muted); }
+    .text-sm { font-size: 12px; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 3px; }
   </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
-<div id="app" class="max-w-3xl mx-auto"></div>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-mark">L</div>
+      <div>
+        <div class="logo-text">PR Score</div>
+        <div class="logo-sub">Automação Loft</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="api-badge" id="apiBadge">
+        <span class="dot"></span>
+        <span id="apiStatus">API não configurada</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="steps">
+        <div class="step active" data-step="0">
+          <div class="step-num">1</div>
+          <div class="step-label">Configuração</div>
+        </div>
+        <div class="step-connector" id="conn-0"></div>
+        <div class="step" data-step="1">
+          <div class="step-num">2</div>
+          <div class="step-label">Upload Clipadora</div>
+        </div>
+        <div class="step-connector" id="conn-1"></div>
+        <div class="step" data-step="2">
+          <div class="step-num">3</div>
+          <div class="step-label">Avaliação Claude</div>
+        </div>
+        <div class="step-connector" id="conn-2"></div>
+        <div class="step" data-step="3">
+          <div class="step-num">4</div>
+          <div class="step-label">Download &amp; Revisão</div>
+        </div>
+        <div class="step-connector" id="conn-3"></div>
+        <div class="step" data-step="4">
+          <div class="step-num">5</div>
+          <div class="step-label">WhatsApp &amp; E-mail</div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="content">
+
+      <!-- PANEL 0: CONFIG -->
+      <div class="panel active" id="panel-0">
+        <div class="panel-title">Configuração</div>
+        <div class="panel-subtitle">Configure a chave da API e a data do clipping para começar.</div>
+
+        <div class="card">
+          <div class="card-title">Anthropic API</div>
+          <div class="field">
+            <label>Chave da API Claude</label>
+            <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." />
+            <div class="hint">Obtenha em <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys</div>
+          </div>
+          <div class="field">
+            <label>Data do clipping</label>
+            <input type="date" id="dataClipping" />
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Lista Tier 1 (opcional)</div>
+          <p class="text-muted text-sm mb-16">Faça upload da planilha Tier 1 para filtrar veículos. Se não enviar, nenhum veículo será excluído por esse critério.</p>
+          <div class="dropzone" id="tier1Drop" onclick="document.getElementById('tier1File').click()">
+            <div class="dropzone-icon">📋</div>
+            <div class="dropzone-text">Hackaton_Tier_1__Loft_1.xlsx</div>
+            <div class="dropzone-sub">Clique ou arraste a planilha aqui</div>
+            <input type="file" id="tier1File" accept=".xlsx,.xls">
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-lg" onclick="startConfig()">
+          Avançar para Upload →
+        </button>
+      </div>
+
+      <!-- PANEL 1: UPLOAD -->
+      <div class="panel" id="panel-1">
+        <div class="panel-title">Upload do Clipping</div>
+        <div class="panel-subtitle">Envie a planilha exportada da Clipadora (.xlsx). Os cabeçalhos devem estar na linha 4, aba "Matérias".</div>
+
+        <div class="card">
+          <div class="dropzone" id="clipDrop" onclick="document.getElementById('clipFile').click()">
+            <div class="dropzone-icon">📂</div>
+            <div class="dropzone-text">Planilha Clipadora</div>
+            <div class="dropzone-sub">Clique ou arraste o arquivo .xlsx aqui</div>
+            <input type="file" id="clipFile" accept=".xlsx,.xls">
+          </div>
+        </div>
+
+        <div id="clipPreview" style="display:none">
+          <div class="alert alert-green" id="clipSummary"></div>
+          <div class="card" style="padding:0">
+            <div class="table-wrap" style="max-height:320px;overflow-y:auto">
+              <table>
+                <thead><tr>
+                  <th>#</th><th>Título</th><th>Veículo</th><th>Data</th><th>Empresa</th><th>Status</th>
+                </tr></thead>
+                <tbody id="clipTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="flex gap-12 items-center" style="margin-top:20px">
+            <button class="btn btn-primary btn-lg" onclick="startProcessing()">
+              ▶ Iniciar Avaliação com Claude
+            </button>
+            <span class="text-muted text-sm" id="estimativaLabel"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 2: PROCESSING -->
+      <div class="panel" id="panel-2">
+        <div class="panel-title">Avaliação em andamento</div>
+        <div class="panel-subtitle">Claude está analisando cada matéria. Por favor aguarde.</div>
+
+        <div class="progress-wrap">
+          <div class="progress-bar-outer">
+            <div class="progress-bar-inner" id="progressBar" style="width:0%"></div>
+          </div>
+          <div class="progress-label">
+            <span id="progressText">Preparando...</span>
+            <span id="progressPct">0%</span>
+          </div>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-chip green"><div class="val" id="statDestaque">0</div><div class="lbl">Destaques</div></div>
+          <div class="stat-chip blue"><div class="val" id="statMencao">0</div><div class="lbl">Menções</div></div>
+          <div class="stat-chip red"><div class="val" id="statNeg">0</div><div class="lbl">Negativos</div></div>
+          <div class="stat-chip orange"><div class="val" id="statHumano">0</div><div class="lbl">Revisão humana</div></div>
+        </div>
+
+        <div class="log-box" id="logBox"></div>
+
+        <div id="processingDone" style="display:none;margin-top:20px">
+          <div class="alert alert-green">✅ Avaliação concluída! Planilha gerada e pronta para download.</div>
+          <button class="btn btn-primary btn-lg" style="margin-top:12px" onclick="goToStep(3)">
+            Ir para Download &amp; Revisão →
+          </button>
+        </div>
+      </div>
+
+      <!-- PANEL 3: DOWNLOAD & REVIEW -->
+      <div class="panel" id="panel-3">
+        <div class="panel-title">Download &amp; Revisão Humana</div>
+        <div class="panel-subtitle">Baixe a planilha processada, revise e então aprove ou corrija.</div>
+
+        <div class="card mb-24">
+          <div class="card-title">Planilha Processada</div>
+          <div class="flex gap-12 items-center">
+            <button class="btn btn-primary" onclick="downloadXlsx()">
+              ⬇ Baixar Planilha .xlsx
+            </button>
+            <span class="text-muted text-sm" id="downloadLabel"></span>
+          </div>
+        </div>
+
+        <div class="card mb-24">
+          <div class="card-title">Resumo da Avaliação</div>
+          <div class="stats-row" id="reviewStats"></div>
+          <div class="table-wrap" style="max-height:340px;overflow-y:auto">
+            <table>
+              <thead><tr>
+                <th>Empresa</th><th>Título</th><th>Veículo</th><th>Protagonismo</th><th>Soma</th><th>OBS</th>
+              </tr></thead>
+              <tbody id="reviewTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Validação Humana</div>
+          <p class="text-muted text-sm mb-16">Revise a planilha baixada e escolha como prosseguir:</p>
+          <div class="validation-box">
+            <div class="val-btn-card approve" onclick="approveResults()">
+              <div class="icon">👍</div>
+              <div class="label">Aprovar Resultados</div>
+              <div class="desc">Usar a avaliação automática do Claude para gerar WhatsApp e e-mail</div>
+            </div>
+            <div class="val-btn-card reject" onclick="showRejectUpload()">
+              <div class="icon">👎</div>
+              <div class="label">Enviar Revisão</div>
+              <div class="desc">Upload da planilha corrigida manualmente pelo time de PR</div>
+            </div>
+          </div>
+
+          <div id="rejectUploadArea" style="display:none;margin-top:20px">
+            <hr class="divider">
+            <div class="card-title mb-8">Upload da planilha revisada</div>
+            <p class="text-muted text-sm mb-16">A planilha deve ter a aba "Gabarito Dashboard" com as correções feitas.</p>
+            <div class="dropzone" id="revDrop" onclick="document.getElementById('revFile').click()">
+              <div class="dropzone-icon">📤</div>
+              <div class="dropzone-text">Planilha revisada pelo time</div>
+              <div class="dropzone-sub">Deve conter a aba "Gabarito Dashboard"</div>
+              <input type="file" id="revFile" accept=".xlsx,.xls">
+            </div>
+            <button class="btn btn-primary" style="margin-top:16px" id="btnUseRevised" onclick="useRevisedFile()" disabled>
+              Gerar outputs com esta planilha →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 4: OUTPUTS -->
+      <div class="panel" id="panel-4">
+        <div class="panel-title">WhatsApp &amp; E-mail</div>
+        <div class="panel-subtitle">Outputs prontos para distribuição.</div>
+
+        <div class="score-grid" id="scorecardGrid"></div>
+
+        <div class="output-section">
+          <div class="output-header">
+            <div class="output-title">💬 Mensagem WhatsApp</div>
+            <button class="btn btn-sm btn-outline copy-btn" id="btnCopyWa" onclick="copyWa()">Copiar</button>
+          </div>
+          <div class="wa-box" id="waBox"></div>
+        </div>
+
+        <div class="output-section">
+          <div class="output-header">
+            <div class="output-title">✉️ HTML do E-mail</div>
+            <div class="flex gap-8">
+              <button class="btn btn-sm btn-outline copy-btn" id="btnCopyHtml" onclick="copyHtml()">Copiar HTML</button>
+              <button class="btn btn-sm btn-outline" onclick="downloadEmail()">⬇ Baixar .html</button>
+            </div>
+          </div>
+          <div class="email-preview">
+            <iframe id="emailFrame" title="Preview do e-mail"></iframe>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
 
 <script>
-// ─────────────────────────────────────────────
-// CONSTANTES
-// ─────────────────────────────────────────────
-const TIER1 = new Set([
-  "98 fm","agência brasil","agência brasil (ebc)","agência estado","agência o globo",
-  "alvorada","a tribuna","an revista-sc","abmi","band tv rs","bandnews","bandnews fm",
-  "bandnews fm curitiba","bandnews fm (curitiba)","bandnews fm - curitiba","bbc brasil",
-  "bc notícias","bem minas","bem paraná","bhaz","bloomberg","bloomberg línea",
-  "bn americas","brazil journal","broadcast","business insider","canaltech",
-  "capital aberto","casa claudia","casa e jardim","casa vogue","cbn","cbn campinas",
-  "cbn curitiba","cbn santos","cbn porto alegre","cnbc - times brasil","cnn",
-  "cnn brasil","cnn online","contxto","correio braziliense","correio do povo",
-  "correio do povo (porto alegre)","correio popular","crunchbase","dc (nsc)","destak",
-  "diário catarinense","diário da cidade","diário da manhã","diário do comércio",
-  "diário do grande abc","diário do rio","diário gaúcho","diário indústria & comércio",
-  "diário indústria & comércio - curitiba","direto da fonte","economia sc","época",
-  "época negócios","eptv/globo","estado de minas","estadão","eu rio","exame","extra",
-  "financial times","folha de s. paulo","folha de são paulo","folha de s.paulo",
-  "folha dirigida","forbes","forbes brasil","fortune","g1","g1 campinas e região",
-  "g1 santa catarina (nsc)","g1 santos e região","gaúcha zh","gauchazh","gazeta do povo",
-  "gazz conecta","globo-nsc tv","globo brasília","globonews","gq brasil","gps brasília",
-  "hoje em dia","hora de santa catarina","hub imobiliário","imobi report","imobireport",
-  "infomoney","investnews","isto é","istoé dinheiro","isto é dinheiro","intercept",
-  "jb fm (rio de janeiro)","jornal do comércio","jornal do comércio - porto alegre",
-  "jornal de brasília","jornal metro","jornal meia hora","jornal o pioneiro",
-  "jornal o sul (online)","jota","joyce pascowitch","jovem pan","jovempan",
-  "linkedin news","meio e mensagem","meio&mensagem","revista meio & mensagem - sp",
-  "mergermarket","metro quadrado","metrópoles","migalhas","money times","msn",
-  "msn brasil","mais goiás","massa","neofeed","neo feed","nexo","nd mais","ndmais",
-  "ndtv","nsc total","notícia já - grupo rac","notícias do dia","o antagonista",
-  "o dia","o dia - rj","o estado de s.paulo","o estado de são paulo","o globo",
-  "o metro sp","o popular","o popular - goiânia","o sul","o sul - porto alegre",
-  "o tempo","otempo","olhar digital","panorama tv","pegn",
-  "pequenas empresas & grandes negócios","pioneiro","pipeline","poder360",
-  "portal metrópole online","portal mais goiás","portal ric","portal vgv","portal 6",
-  "portal visão oeste","portas.com.br","propmark","r7","rádio 102.3",
-  "rádio band news fm","rádio bandeirantes (94.9 fm)","rádio caiçara (rede pampa)",
-  "radio caiçara","rádio cbn porto alegre","rádio gaúcha","rádio guaíba",
-  "rádio itatiaia","rádio metropolitana ms","rádio pampa","radio pampa",
-  "rádio super notícia","rádio tupi (96.5 fm - rio de janeiro)",
-  "super rádio tupi - 96,5 fm","rbs tv","rcp","rede massa",
-  "rede massa sbt tv iguaçu (curitiba)","reuters","revista encontro",
-  "revista exame - sp","revista gol","revista metrópole - grupo rac","revista poder",
-  "revista trip","revista piauí","revista mercado comum","santa (itajaí-nsc)",
-  "santa revista-sc","sbt rs","scc10","secovi","seu dinheiro","startse","startups",
-  "super notícia","techcrunch","tech tudo","techtudo","tec mundo","terra",
-  "times brasil","times brasil - cnbc","tribuna do paraná","tv band","tv cultura",
-  "tv globo","tv pampa","tv record rs","tv tribuna","uai","uol","vale do pinhão",
-  "valor econômico","valor investe","venture capital journal","veja","veja rio",
-  "veja são paulo","vgv","você rh","você s/a","voz do bairro","wall street journal",
-  "yahoo","youtube","zero hora","follownews","www.radiocaicara.com.br"
-]);
-
-const PAYWALL = ["valor econômico","jornal do comércio","jornal do comércio - porto alegre"];
-const EXCLUIR_CANAL = ["coelho da fonseca","lopes","assuntos de interesse"];
-
-function normalizeEmpresa(canal) {
-  const c = String(canal||'').toLowerCase();
-  if (c.includes('loft')||c.includes('foxter')) return 'Loft';
-  if (c.includes('zap')||c.includes('olx')||c.includes('viva real')) return 'ZAP';
-  if (c.includes('quintoandar')||c.includes('quinto andar')||c.includes('imovelweb')) return 'QuintoAndar';
-  if (c.includes('superlógica')||c.includes('superlogica')) return 'Superlógica';
-  if (c.includes('creditas')) return 'Creditas';
-  if (c.includes('porto seguro')) return 'Porto Seguro';
-  return canal||'';
-}
-
-function excelDateToStr(v) {
-  if (!v) return '';
-  if (typeof v === 'string' && v.includes('/')) return v;
-  const n = parseFloat(v);
-  if (isNaN(n)) return String(v);
-  const d = new Date((n - 25569) * 86400 * 1000);
-  return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
-}
-
-function isTier1(v) { return TIER1.has(String(v||'').toLowerCase().trim()); }
-function isPaywall(v) { return PAYWALL.some(p=>String(v||'').toLowerCase().includes(p)); }
-function isCanalExcluido(c) { return EXCLUIR_CANAL.some(e=>String(c||'').toLowerCase().includes(e)); }
-
-function isPressReleasePago(titulo, release) {
-  const r = String(release||'').toLowerCase();
-  const t = String(titulo||'').toLowerCase();
-  return r==='sim'||r==='yes'||t.includes('enviado por dino')||t.includes('conteúdo de marca');
-}
-
-// ─────────────────────────────────────────────
-// ESTADO
-// ─────────────────────────────────────────────
-const S = {
-  apiKey: sessionStorage.getItem('gk')||'',
-  file: null, processing: false,
-  progress: 0, status: '', results: null,
+// ═══ STATE ═══════════════════════════════════════════
+const state = {
+  apiKey: '',
+  dataClipping: '',
+  tier1Set: null,
+  clipData: null,
+  df: [],
+  dfMain: [],
+  dfRed: [],
+  dfDouble: [],
+  dfFinal: [],
+  pts: {},
+  dests: {},
+  htmlEmail: '',
+  waText: '',
+  generatedBlob: null,
+  revisedFile: null,
 };
 
-// ─────────────────────────────────────────────
-// FETCH COM TIMEOUT
-// ─────────────────────────────────────────────
-async function fetchWithTimeout(url, ms=12000) {
-  const ctrl = new AbortController();
-  const id = setTimeout(()=>ctrl.abort(), ms);
-  try {
-    const r = await fetch(url, {signal: ctrl.signal});
-    clearTimeout(id);
-    return r;
-  } catch(e) { clearTimeout(id); throw e; }
+const COMPANIES = ['Loft', 'QuintoAndar', 'ZAP', 'Superlógica'];
+const COLORS = { Loft: '#FF6B35', QuintoAndar: '#3B82F6', ZAP: '#22C55E', 'Superlógica': '#A855F7' };
+const EMOJIS = { Loft: '🟠', QuintoAndar: '🔵', ZAP: '🟢', 'Superlógica': '🟣' };
+const PAYWALL_V = ['valor econômico', 'jornal do comércio'];
+const CANAIS_EX = ['coelho da fonseca', 'lopes', 'assuntos de interesse'];
+const OFF_KW    = ['carro', 'automóvel', 'celular', 'smartphone', 'veículo automotor'];
+
+// ═══ INIT ════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('dataClipping').valueAsDate = new Date();
+  setupDrop('tier1Drop', 'tier1File', handleTier1File);
+  setupDrop('clipDrop',  'clipFile',  handleClipFile);
+  setupDrop('revDrop',   'revFile',   handleRevFile);
+});
+
+// ═══ STEPS ═══════════════════════════════════════════
+function goToStep(n) {
+  document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === n));
+  document.querySelectorAll('.step').forEach((s, i) => {
+    s.classList.remove('active', 'done');
+    s.querySelector('.step-num').textContent = i + 1;
+    if (i < n) { s.classList.add('done'); s.querySelector('.step-num').textContent = '✓'; }
+    if (i === n) s.classList.add('active');
+  });
+  document.querySelectorAll('.step-connector').forEach((c, i) => c.classList.toggle('done', i < n));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-async function fetchArticleText(url) {
-  if (!url||!String(url).startsWith('http')) return '';
-  try {
-    const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    const r = await fetchWithTimeout(proxy, 13000);
-    if (!r.ok) return '';
-    const html = await r.text();
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    doc.querySelectorAll('script,style,nav,header,footer,aside').forEach(e=>e.remove());
-    const txt = Array.from(doc.querySelectorAll('p,h1,h2,h3'))
-      .map(p=>p.textContent.trim()).filter(t=>t.length>20).join(' ');
-    return txt.slice(0,5000);
-  } catch(e) { return ''; }
-}
-
-// ─────────────────────────────────────────────
-// GEMINI
-// ─────────────────────────────────────────────
-const TEMAS = ["Mercado Imobiliário","Precificação","Locação","Compra e Venda",
-  "Tecnologia e Produto","Porta-voz","Pesquisas e Tendências","Expansão e Negócios",
-  "Crise e Reputação","Mercado de Capitais","Urbanismo e Cidades",
-  "Financiamento e Crédito","ESG","RH e Cultura","Transações","Crédito Imobiliário"];
-
-async function avaliarGemini(titulo, veiculo, empresa, texto, apiKey) {
-  const semTexto = !texto;
-  const conteudo = texto || `[Texto não disponível — avalie apenas pelo título: ${titulo}]`;
-
-  const prompt = `Você é especialista em PR Score da Loft (mercado imobiliário brasileiro).
-Avalie a matéria e responda APENAS em JSON válido, sem markdown.
-
-EMPRESA: ${empresa}
-TÍTULO: ${titulo}
-VEÍCULO: ${veiculo}
-TEXTO: ${conteudo}
-
-LÓGICA OBRIGATÓRIA:
-Passo 1 — Se algum critério 9-19 for verdadeiro → DESTAQUE. Senão → MENÇÃO (exceto se C1 ou C2 forem verdadeiros).
-C9: ≥3 frases de porta-voz
-C10: ≥5 frases ou 8 linhas sobre a empresa
-C11: empresa ocupa ≥30% do texto
-C12: live 1k+ views [HUMANO]
-C13: empresa é fonte de dados (mais comum)
-C14: citação em coluna jornalística
-C15: veículo nichado estratégico [HUMANO]
-C16: sentenças positivas/negativas alternadas
-C17: publieditorial disfarçado
-C18: anúncio governamental com empresa
-C19: equivalências (OLX→ZAP, ImovelWeb→QuintoAndar, Foxter→Loft)
-
-Passo 2 (só se Destaque) — pontos extras +1 cada:
-C1: empresa no título/linha-fina
-C2: foto com executivo/logo [SINALIZAR]
-C3: TV/Rádio duração [HUMANO]
-C4: TV/Rádio aspas porta-voz [HUMANO]
-C5: chamada redes/home portal [HUMANO]
-C6: gráfico/infográfico/box [SINALIZAR]
-C7: artigo de executivo
-C8: 10+ trechos porta-voz no lead [HUMANO]
-C20: ≥6 menções à empresa
-C21: CTA explícito para outra matéria
-
-Tom negativo → "Destaque Negativo" ou "Menção Negativa".
-pr_tec_produto e pr_puro_imobis: apenas Loft, senão false.
-Temas disponíveis: ${TEMAS.join(', ')}
-
-JSON esperado:
-{"protagonismo":"Destaque|Menção|Destaque Negativo|Menção Negativa","tipo":"Online|Impresso|Rádio|TV|Chamada Online","pr_tec_produto":false,"pr_puro_imobis":false,"data":false,"data_carona":false,"tema":"","subtema":"","produto":"","pontuacao":0,"criterios_considerados":"","necessarios_avaliacao_humana":"","obs":"","confianca":"alta|media|baixa"}`;
-
-  for (let t=0; t<3; t++) {
-    try {
-      const r = await fetchWithTimeout(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        20000
-      );
-      const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({
-            contents:[{parts:[{text:prompt}]}],
-            generationConfig:{temperature:0.1,maxOutputTokens:800}
-          })
-        }
-      );
-      if (!resp.ok) { const e=await resp.text(); throw new Error(e.slice(0,200)); }
-      const d = await resp.json();
-      let raw = d.candidates?.[0]?.content?.parts?.[0]?.text||'';
-      raw = raw.replace(/```json\s*/gi,'').replace(/```\s*/gi,'').trim();
-      const res = JSON.parse(raw);
-      if (semTexto) {
-        res.necessarios_avaliacao_humana = [res.necessarios_avaliacao_humana,'SEM_TEXTO'].filter(Boolean).join(';');
-        res.confianca = 'baixa';
-      }
-      return res;
-    } catch(e) {
-      if (t<2) await new Promise(r=>setTimeout(r, 2000*(t+1)));
-      else return {
-        protagonismo:'Menção',tipo:'Online',pr_tec_produto:false,pr_puro_imobis:false,
-        data:false,data_carona:false,tema:'',subtema:'',produto:'',pontuacao:0,
-        criterios_considerados:'',necessarios_avaliacao_humana:'ERRO_GEMINI',
-        obs:`🔴 Erro: ${String(e.message||e).slice(0,100)}`,confianca:'baixa'
-      };
-    }
-  }
-}
-
-// ─────────────────────────────────────────────
-// PROCESSAMENTO
-// ─────────────────────────────────────────────
-async function processar() {
-  if (!S.file||!S.apiKey||S.processing) return;
-  S.processing=true; S.progress=0; S.results=null;
-  render();
-
-  try {
-    upd('Lendo planilha...', 2);
-    const buf = await S.file.arrayBuffer();
-    const wb = XLSX.read(buf, {type:'array', cellStyles:true, cellDates:true});
-    const wsName = wb.SheetNames.includes('Matérias') ? 'Matérias' : wb.SheetNames[0];
-    const raw = XLSX.utils.sheet_to_json(wb.Sheets[wsName], {header:1, defval:''});
-
-    // Headers na linha 4 (índice 3), dados a partir do índice 4
-    const dataRows = raw.slice(4).filter(r=>r[0]);
-
-    // Mapear colunas: A=0 título, B=1 veículo, C=2 data, G=6 canal, L=11 estado, M=12 mídia, W=22 release, AB=27 link
-    const rows = dataRows.map((r,i)=>({
-      _i: i,
-      titulo: r[0], veiculo: r[1], data_raw: r[2],
-      canal: r[6], estado: r[11], midia: r[12],
-      release: r[22], link: r[27]||'',
-    }));
-
-    upd('Criando cópia de backup...', 5);
-
-    // ── Aba "Cópia de Matérias" (backup limpo)
-    const wbOut = XLSX.utils.book_new();
-    const wsCopia = XLSX.utils.aoa_to_sheet(raw);
-    XLSX.utils.book_append_sheet(wbOut, wsCopia, 'Cópia de Matérias');
-
-    // ── Aba "Matérias" com linhas pintadas
-    upd('Filtrando e pintando linhas...', 8);
-    const wsMat = XLSX.utils.aoa_to_sheet(raw);
-    const redReasons = [];
-
-    rows.forEach(row => {
-      let reason = '';
-      if (isCanalExcluido(row.canal)) reason = 'Canal excluído';
-      else if (!isTier1(row.veiculo)) reason = 'Não é Tier 1';
-      else if (isPressReleasePago(row.titulo, row.release)) reason = 'Press release pago';
-
-      if (reason) {
-        redReasons.push({rowData: row, reason});
-        const sheetRow = row._i + 4; // +4 porque dados começam no índice 4 do array (linha 5 da planilha)
-        for (let c=0; c<=27; c++) {
-          const addr = XLSX.utils.encode_cell({r: sheetRow, c});
-          if (!wsMat[addr]) wsMat[addr] = {v:'', t:'s'};
-          wsMat[addr].s = {fill:{fgColor:{rgb:'FFCCCC'}, patternType:'solid'},
-                           font:{color:{rgb:'990000'}}};
-        }
-      }
-    });
-
-    XLSX.utils.book_append_sheet(wbOut, wsMat, 'Matérias');
-
-    // ── Filtrar válidas
-    const validas = rows.filter(r => {
-      if (isCanalExcluido(r.canal)) return false;
-      if (!isTier1(r.veiculo)) return false;
-      if (isPressReleasePago(r.titulo, r.release)) return false;
-      return true;
-    });
-
-    upd(`Avaliando ${validas.length} matérias com IA...`, 12);
-
-    // ── Avaliar com Gemini
-    const gabarito = [];
-    for (let i=0; i<validas.length; i++) {
-      const row = validas[i];
-      upd(`Avaliando ${i+1}/${validas.length}: ${String(row.titulo).slice(0,60)}...`,
-        12 + Math.round((i/validas.length)*72));
-
-      let texto = '', paywallFlag = false;
-      if (isPaywall(row.veiculo)) {
-        paywallFlag = true;
-      } else {
-        texto = await fetchArticleText(row.link);
-      }
-
-      const empresa = normalizeEmpresa(row.canal);
-      let aval;
-
-      if (paywallFlag) {
-        aval = {protagonismo:'Menção',tipo:'Impresso',pr_tec_produto:false,pr_puro_imobis:false,
-          data:false,data_carona:false,tema:'',subtema:'',produto:'',pontuacao:0,
-          criterios_considerados:'',necessarios_avaliacao_humana:'PAYWALL',
-          obs:`🔴 PAYWALL — ${row.veiculo}: acessar com login premium`,confianca:'baixa'};
-      } else {
-        aval = await avaliarGemini(row.titulo, row.veiculo, empresa, texto, S.apiKey);
-        await new Promise(r=>setTimeout(r,600));
-      }
-
-      const dataStr = excelDateToStr(row.data_raw);
-      const mes = dataStr.split('/')[1]?.replace(/^0/,'')||'';
-
-      gabarito.push({
-        indice: i+1, mes, titulo: row.titulo, veiculo: row.veiculo,
-        data: dataStr, canal: row.canal, link: row.link, empresa,
-        protagonismo: aval.protagonismo, tipo: aval.tipo,
-        pr_tec_produto: aval.pr_tec_produto, pr_puro_imobis: aval.pr_puro_imobis,
-        data_flag: aval.data, data_carona: aval.data_carona,
-        retranca:'', modelo_clipping:`*[Retranca]* ${row.titulo} - ${row.veiculo} ${row.link}`,
-        tema: aval.tema, subtema: aval.subtema, produto: aval.produto,
-        obs: aval.obs, chave_subscore:`${i+1}${row.veiculo}`,
-        cidade:'', estado: row.estado,
-        pontuacao: aval.pontuacao, criterios: aval.criterios_considerados,
-        humano: aval.necessarios_avaliacao_humana, confianca: aval.confianca,
-      });
-    }
-
-    upd('Gerando Gabarito Dashboard...', 86);
-
-    const hdrs = ['Índice','Mês','Título','Veículo','Data','Canal','Link','Empresa',
-      'Protagonismo','Tipo','PR Tec+Produto','PR Puro Imobis','Data','Data Carona',
-      'Retranca','Modelo Clipping','Tema','Subtema','Produto','OBS','Chave Subscore',
-      'Cidade','Estado','Pontuação da Matéria','Critérios Considerados na Pontuação',
-      'Necessários Avaliação Humana'];
-
-    const gabRows = gabarito.map(g=>[
-      g.indice, g.mes, g.titulo, g.veiculo, g.data, g.canal, g.link, g.empresa,
-      g.protagonismo, g.tipo, g.pr_tec_produto?'TRUE':'FALSE', g.pr_puro_imobis?'TRUE':'FALSE',
-      g.data_flag?'TRUE':'FALSE', g.data_carona?'TRUE':'FALSE',
-      g.retranca, g.modelo_clipping, g.tema, g.subtema, g.produto,
-      g.obs, g.chave_subscore, g.cidade, g.estado,
-      g.pontuacao, g.criterios, g.humano
-    ]);
-
-    const wsGab = XLSX.utils.aoa_to_sheet([hdrs,...gabRows]);
-
-    // Pintar amarelo linhas que precisam revisão humana
-    gabRows.forEach((r,i)=>{
-      if (r[25]?.toString().trim()) {
-        const addr = XLSX.utils.encode_cell({r:i+1, c:25});
-        if (!wsGab[addr]) wsGab[addr]={v:r[25],t:'s'};
-        wsGab[addr].s = {fill:{fgColor:{rgb:'FFEB9C'},patternType:'solid'}};
-      }
-    });
-
-    // Negrito no header
-    hdrs.forEach((_,c)=>{
-      const addr = XLSX.utils.encode_cell({r:0,c});
-      if (!wsGab[addr]) wsGab[addr]={v:hdrs[c],t:'s'};
-      wsGab[addr].s = {font:{bold:true}, fill:{fgColor:{rgb:'FF6B35'},patternType:'solid'},
-                       font:{bold:true,color:{rgb:'FFFFFF'}}};
-    });
-
-    XLSX.utils.book_append_sheet(wbOut, wsGab, 'Gabarito Dashboard');
-
-    upd('Gerando Totais...', 92);
-
-    // ── Aba Totais
-    const EMP = ['Loft','QuintoAndar','ZAP','Superlógica'];
-    const pts = {}, dests = {};
-    EMP.forEach(e=>{pts[e]=0; dests[e]=[];});
-    gabarito.forEach(g=>{
-      if (g.protagonismo==='Destaque' && pts[g.empresa]!==undefined) {
-        pts[g.empresa]+=(g.pontuacao||1); dests[g.empresa].push(g);
-      }
-    });
-    const porMidia = {}, porEstado = {};
-    gabarito.forEach(g=>{
-      porMidia[g.tipo]=(porMidia[g.tipo]||0)+1;
-      if (g.estado) porEstado[g.estado]=(porEstado[g.estado]||0)+1;
-    });
-    const nHumano = gabarito.filter(g=>g.humano?.trim()).length;
-
-    const totData = [
-      ['PR Score — Totais'], [''],
-      ['PONTUAÇÃO POR EMPRESA','Pontos','Destaques'],
-      ...EMP.map(e=>[e,pts[e],dests[e].length]),
-      [''],
-      ['TIPO DE MÍDIA','Qtd'],
-      ...Object.entries(porMidia).sort((a,b)=>b[1]-a[1]),
-      [''],
-      ['ESTADO','Qtd'],
-      ...Object.entries(porEstado).sort((a,b)=>b[1]-a[1]),
-      [''],
-      ['RESUMO',''],
-      ['Total avaliadas', gabarito.length],
-      ['Pintadas de vermelho', redReasons.length],
-      ['Revisão humana pendente', nHumano],
-    ];
-    XLSX.utils.book_append_sheet(wbOut, XLSX.utils.aoa_to_sheet(totData), 'Totais');
-
-    upd('Gerando outputs...', 96);
-
-    // ── WhatsApp
-    const hoje = new Date();
-    const dd = `${String(hoje.getDate()).padStart(2,'0')}/${String(hoje.getMonth()+1).padStart(2,'0')}`;
-    let wa = `📊 PR Score — ${dd}\n\n`;
-    wa += `🟠 Loft: ${pts['Loft']} pts\n`;
-    wa += `🔵 QuintoAndar: ${pts['QuintoAndar']} pts\n`;
-    wa += `🟢 ZAP: ${pts['ZAP']} pts\n`;
-    wa += `⚫ Superlógica: ${pts['Superlógica']} pts\n`;
-    if (dests['Loft'].length>0) {
-      wa += `\n📰 Destaques Loft do dia:\n`;
-      dests['Loft'].forEach(d=>{ wa+=`• ${d.titulo} - ${d.veiculo} ${d.link}\n`; });
-    }
-    if (nHumano>0) wa+=`\n⚠️ ${nHumano} matéria${nHumano!==1?'s':''} aguardam revisão humana`;
-
-    // ── HTML e-mail
-    const CORES = {Loft:'#FF6B35',QuintoAndar:'#1A73E8',ZAP:'#34A853','Superlógica':'#212121'};
-    const EMJS = {Loft:'🟠',QuintoAndar:'🔵',ZAP:'🟢','Superlógica':'⚫'};
-    let secoes = '';
-    for (const e of EMP) {
-      const cor = CORES[e];
-      const itens = dests[e].length===0
-        ? '<p style="color:#888;font-style:italic">Sem destaques hoje.</p>'
-        : dests[e].map(d=>`
-          <div style="border-left:3px solid ${cor};padding:10px 16px;margin-bottom:10px;background:#fafafa">
-            <a href="${d.link}" style="color:#111;font-weight:600;font-size:15px;text-decoration:none">${d.titulo}</a>
-            <div style="margin-top:4px;font-size:13px;color:#666">
-              ${d.veiculo} · ${d.data}
-              <span style="background:${cor};color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:6px">${d.pontuacao} pt${d.pontuacao!==1?'s':''}</span>
-            </div>
-          </div>`).join('');
-      secoes += `<div style="margin-bottom:28px">
-        <h2 style="color:${cor};border-bottom:2px solid ${cor};padding-bottom:6px">
-          ${EMJS[e]} ${e} <span style="font-size:14px;font-weight:normal;color:#888">— ${pts[e]} pontos</span>
-        </h2>${itens}</div>`;
-    }
-
-    const placar = EMP.map(e=>`
-      <div style="text-align:center;padding:10px 16px">
-        <div style="font-size:22px;font-weight:bold;color:${CORES[e]}">${pts[e]}</div>
-        <div style="font-size:12px;color:#666">${e}</div>
-      </div>`).join('');
-
-    const htmlEmail = `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>PR Score — ${dd}</title></head>
-<body style="font-family:Arial,sans-serif;max-width:660px;margin:0 auto;padding:24px;color:#222">
-  <div style="background:#FF6B35;padding:20px 24px;border-radius:8px;margin-bottom:20px">
-    <h1 style="color:#fff;margin:0;font-size:22px">📊 PR Score</h1>
-    <p style="color:#fff;margin:4px 0 0;opacity:.9">${dd}</p>
-  </div>
-  <div style="display:flex;justify-content:space-around;background:#f5f5f5;border-radius:8px;margin-bottom:28px">${placar}</div>
-  ${secoes}
-  <div style="border-top:1px solid #eee;padding-top:14px;font-size:12px;color:#999;text-align:center">
-    PR Score · Loft · Time de PR<br>
-    <a href="#dashboard" style="color:#FF6B35">Ver histórico completo no Dashboard</a>
-  </div>
-</body></html>`;
-
-    upd('Concluído! ✅', 100);
-
-    const xlsxBuf = XLSX.write(wbOut, {bookType:'xlsx', type:'array', cellStyles:true});
-
-    S.results = {
-      xlsxBuf, wa, htmlEmail,
-      stats: {
-        total: rows.length, pintadas: redReasons.length,
-        avaliadas: gabarito.length,
-        destaques: gabarito.filter(g=>g.protagonismo==='Destaque').length,
-        mencoes: gabarito.filter(g=>g.protagonismo==='Menção').length,
-        humano: nHumano,
-      }
-    };
-    S.processing = false;
-    render();
-  } catch(e) {
-    S.processing = false;
-    S.status = `❌ Erro: ${e.message}`;
-    render();
-  }
-}
-
-function upd(msg, pct) { S.status=msg; S.progress=pct; render(); }
-
-function baixarXlsx() {
-  if (!S.results) return;
-  const blob = new Blob([S.results.xlsxBuf],
-    {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `PR_Score_${new Date().toISOString().slice(0,10)}.xlsx`;
-  a.click();
-}
-
-function copiar(id, btn) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const txt = el.tagName==='TEXTAREA' ? el.value : el.textContent;
-  navigator.clipboard.writeText(txt).then(()=>{
-    btn.textContent='✅ Copiado!';
-    setTimeout(()=>btn.textContent='📋 Copiar',2000);
+// ═══ DROP ZONES ══════════════════════════════════════
+function setupDrop(dropId, inputId, handler) {
+  const drop = document.getElementById(dropId);
+  const inp  = document.getElementById(inputId);
+  if (!drop || !inp) return;
+  inp.addEventListener('change', e => { if (e.target.files[0]) handler(e.target.files[0]); });
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) handler(e.dataTransfer.files[0]);
   });
 }
 
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// ═══ TIER 1 ══════════════════════════════════════════
+function handleTier1File(file) {
+  readFileAsArray(file, bytes => {
+    const wb = XLSX.read(bytes, { type: 'array' });
+    const set = new Set();
+    wb.SheetNames.forEach(sn => {
+      XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: false })
+        .forEach(row => row.forEach(cell => { const v = String(cell||'').trim().toLowerCase(); if (v) set.add(v); }));
+    });
+    state.tier1Set = set;
+    markDrop('tier1Drop', `✓ ${file.name}`, `${set.size} veículos carregados`);
+  });
 }
 
-// ─────────────────────────────────────────────
-// RENDER
-// ─────────────────────────────────────────────
-function render() {
-  document.getElementById('app').innerHTML = S.results ? renderResultados() : renderForm();
-  bindEvents();
+// ═══ CONFIG ═══════════════════════════════════════════
+function startConfig() {
+  const key  = document.getElementById('apiKeyInput').value.trim();
+  const dateV = document.getElementById('dataClipping').value;
+  if (!key)   { alert('Insira a chave da API Claude.'); return; }
+  if (!dateV) { alert('Selecione a data do clipping.'); return; }
+  state.apiKey = key;
+  const d = new Date(dateV + 'T12:00:00');
+  state.dataClipping = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+  setBadge('Verificando...', false);
+  callClaude('Responda apenas: OK', 10)
+    .then(() => { setBadge('Conectado ✓', true); goToStep(1); })
+    .catch(e  => { setBadge('Erro de conexão', false); alert('Erro API: ' + e.message); });
 }
 
-function renderForm() {
-  const ok = S.file && S.apiKey && !S.processing;
-  return `
-    <div style="background:#FF6B35;color:white;padding:18px 22px;border-radius:12px;margin-bottom:20px">
-      <h1 style="margin:0;font-size:20px;font-weight:700">🟠 PR Score — Automação Loft</h1>
-      <p style="margin:4px 0 0;opacity:.85;font-size:13px">Avaliação automática de protagonismo com IA (Gemini)</p>
-    </div>
-
-    <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin-bottom:14px">
-      <label style="display:block;font-weight:600;margin-bottom:7px;color:#374151;font-size:14px">🔑 Chave API Gemini</label>
-      <input id="apiKey" type="password" placeholder="AIzaSy..." value="${esc(S.apiKey)}"
-        style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:14px;box-sizing:border-box"/>
-      <p style="margin:5px 0 0;font-size:12px;color:#6b7280">
-        Obter gratuitamente em <a href="https://aistudio.google.com" target="_blank" style="color:#FF6B35">aistudio.google.com</a> → Get API Key
-      </p>
-    </div>
-
-    <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin-bottom:14px">
-      <label style="display:block;font-weight:600;margin-bottom:7px;color:#374151;font-size:14px">📂 Planilha da Clipadora (.xlsx)</label>
-      <div id="drop" style="border:2px dashed #d1d5db;border-radius:8px;padding:28px;text-align:center;cursor:pointer">
-        <input type="file" id="fileInput" accept=".xlsx" style="display:none">
-        ${S.file
-          ? `<div style="font-size:28px">📄</div>
-             <div style="font-weight:600;margin-top:6px">${esc(S.file.name)}</div>
-             <div style="font-size:12px;color:#6b7280">${(S.file.size/1024).toFixed(0)} KB</div>
-             <button id="rmFile" style="margin-top:6px;color:#ef4444;background:none;border:none;cursor:pointer;font-size:12px">✕ Remover</button>`
-          : `<div style="font-size:28px">⬆️</div>
-             <div style="margin:6px 0 3px;font-weight:500;color:#374151;font-size:14px">Arraste o arquivo aqui</div>
-             <div style="font-size:13px;color:#6b7280">ou <span id="pickFile" style="color:#FF6B35;cursor:pointer;text-decoration:underline">clique para selecionar</span></div>`
-        }
-      </div>
-    </div>
-
-    ${S.processing ? `
-    <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:7px">
-        <span style="font-size:13px;color:#374151">${esc(S.status)}</span>
-        <span style="font-size:13px;font-weight:700;color:#FF6B35">${S.progress}%</span>
-      </div>
-      <div style="background:#f3f4f6;border-radius:999px;height:9px;overflow:hidden">
-        <div style="background:#FF6B35;height:100%;border-radius:999px;width:${S.progress}%" class="progress-fill"></div>
-      </div>
-    </div>` : ''}
-
-    <button id="btnProcessar" ${ok?'':'disabled'}
-      style="width:100%;padding:13px;font-size:15px;font-weight:700;color:white;border:none;border-radius:10px;
-             cursor:${ok?'pointer':'not-allowed'};background:${ok?'#FF6B35':'#d1d5db'}">
-      ${S.processing ? '⏳ Processando...' : '🚀 Processar PR Score'}
-    </button>
-    ${!S.apiKey ? '<p style="text-align:center;margin-top:7px;font-size:12px;color:#ef4444">Configure a chave API Gemini acima</p>' : ''}
-  `;
+function setBadge(txt, ok) {
+  document.getElementById('apiStatus').textContent = txt;
+  document.getElementById('apiBadge').classList.toggle('ok', ok);
 }
 
-function renderResultados() {
-  const s = S.results.stats;
-  return `
-    <div style="background:#FF6B35;color:white;padding:18px 22px;border-radius:12px;margin-bottom:20px">
-      <h1 style="margin:0;font-size:20px;font-weight:700">🟠 PR Score — Resultado</h1>
-    </div>
-
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:18px;margin-bottom:14px">
-      <h3 style="margin:0 0 12px;color:#166534;font-size:15px">✅ Processamento concluído!</h3>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center">
-        <div><div style="font-size:20px;font-weight:700;color:#166534">${s.avaliadas}</div><div style="font-size:11px;color:#6b7280">Avaliadas</div></div>
-        <div><div style="font-size:20px;font-weight:700;color:#FF6B35">${s.destaques}</div><div style="font-size:11px;color:#6b7280">Destaques</div></div>
-        <div><div style="font-size:20px;font-weight:700;color:#ef4444">${s.humano}</div><div style="font-size:11px;color:#6b7280">Revisão humana</div></div>
-        <div><div style="font-size:20px;font-weight:700;color:#374151">${s.total}</div><div style="font-size:11px;color:#6b7280">Total clipping</div></div>
-        <div><div style="font-size:20px;font-weight:700;color:#dc2626">${s.pintadas}</div><div style="font-size:11px;color:#6b7280">Pintadas vermelho</div></div>
-        <div><div style="font-size:20px;font-weight:700;color:#6b7280">${s.mencoes}</div><div style="font-size:11px;color:#6b7280">Menções</div></div>
-      </div>
-    </div>
-
-    <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin-bottom:14px">
-      <h3 style="margin:0 0 8px;color:#374151;font-size:15px">📥 Planilha Processada</h3>
-      <p style="margin:0 0 12px;font-size:12px;color:#6b7280">Abas: Cópia de Matérias · Matérias (linhas vermelhas) · Gabarito Dashboard · Totais</p>
-      <button id="btnBaixar" style="background:#FF6B35;color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px">
-        ⬇️ Baixar .xlsx
-      </button>
-    </div>
-
-    <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <h3 style="margin:0;color:#374151;font-size:15px">📱 Mensagem WhatsApp</h3>
-        <button id="cpWa" onclick="copiar('waText', this)" style="background:#25D366;color:white;border:none;padding:5px 12px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">📋 Copiar</button>
-      </div>
-      <pre id="waText" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:7px;padding:12px;font-size:12px;line-height:1.7;margin:0">${esc(S.results.wa)}</pre>
-    </div>
-
-    <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <h3 style="margin:0;color:#374151;font-size:15px">📧 HTML do E-mail</h3>
-        <button id="cpHtml" onclick="copiar('htmlText', this)" style="background:#1A73E8;color:white;border:none;padding:5px 12px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">📋 Copiar</button>
-      </div>
-      <textarea id="htmlText" style="width:100%;height:140px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:7px;padding:12px;font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box">${esc(S.results.htmlEmail)}</textarea>
-    </div>
-
-    <div style="background:#fefce8;border:1px solid #fde68a;border-radius:10px;padding:15px;margin-bottom:14px">
-      <h4 style="margin:0 0 8px;color:#92400e;font-size:13px">📋 Próximos passos (ação humana):</h4>
-      <ol style="margin:0;padding-left:18px;font-size:12px;color:#78350f;line-height:1.9">
-        <li>Baixar a planilha e revisar linhas vermelhas (comparando com aba "Cópia de Matérias")</li>
-        <li>No Gabarito Dashboard, verificar linhas amarelas (coluna "Necessários Avaliação Humana")</li>
-        <li>Copiar Gabarito Dashboard e colar na planilha oficial do Drive</li>
-        <li>Preencher coluna Retranca (consultar Monday)</li>
-        <li>Enviar mensagem WhatsApp → aguardar joinha do gestor ✅</li>
-        <li>Após joinha: colar HTML no RD Station e enviar e-mail</li>
-      </ol>
-    </div>
-
-    <button id="btnNova" style="width:100%;padding:10px;color:#6b7280;background:white;border:1px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:13px">
-      ↩️ Processar nova planilha
-    </button>
-  `;
+// ═══ CLIPADORA ════════════════════════════════════════
+function handleClipFile(file) {
+  readFileAsArray(file, bytes => {
+    state.clipData = bytes;
+    parseClipFile();
+  });
 }
 
-function bindEvents() {
-  const apiInput = document.getElementById('apiKey');
-  if (apiInput) apiInput.addEventListener('input', e=>{ S.apiKey=e.target.value.trim(); sessionStorage.setItem('gk',S.apiKey); });
+function parseClipFile() {
+  const wb = XLSX.read(state.clipData, { type: 'array', cellDates: true });
+  const sheetName = wb.SheetNames.find(n => n === 'Matérias') || wb.SheetNames[0];
+  const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: false, dateNF: 'dd/mm/yyyy' });
+  if (rawRows.length < 5) { alert('Planilha parece vazia ou com formato inesperado.'); return; }
 
-  const fi = document.getElementById('fileInput');
-  if (fi) fi.addEventListener('change', e=>{ S.file=e.target.files[0]; render(); });
+  function get(raw, i) { return (raw[i] !== undefined && raw[i] !== null) ? String(raw[i]).trim() : ''; }
 
-  const pick = document.getElementById('pickFile');
-  if (pick) pick.addEventListener('click', ()=>document.getElementById('fileInput').click());
+  const df = rawRows.slice(4).map(raw => {
+    const titulo = get(raw, 0);
+    if (!titulo) return null;
+    return {
+      titulo, veiculo: get(raw,1), data_raw: get(raw,2),
+      canal: get(raw,6), estado: get(raw,11), midia: get(raw,12),
+      url_fonte: get(raw,26), release: get(raw,22), mat_repetida: get(raw,23), link: get(raw,27),
+    };
+  }).filter(Boolean);
 
-  const drop = document.getElementById('drop');
-  if (drop) {
-    drop.addEventListener('click', ()=>{ if (!S.file) document.getElementById('fileInput')?.click(); });
-    drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.classList.add('drop-active'); });
-    drop.addEventListener('dragleave', ()=>drop.classList.remove('drop-active'));
-    drop.addEventListener('drop', e=>{ e.preventDefault(); drop.classList.remove('drop-active'); S.file=e.dataTransfer.files[0]; render(); });
+  if (!df.length) { alert('Nenhuma matéria encontrada. Verifique se os cabeçalhos estão na linha 4.'); return; }
+
+  df.forEach(r => {
+    r.data    = fmtDate(r.data_raw);
+    r.mes     = r.data.split('/')[1]?.replace(/^0/,'') || '';
+    r.empresa = normalizeEmpresa(r.canal);
+    r.motivo_vermelho = getMotivoVermelho(r);
+  });
+
+  state.df      = df;
+  state.dfRed   = df.filter(r => r.motivo_vermelho);
+  const validas = df.filter(r => !r.motivo_vermelho);
+  state.dfDouble = validas.filter(r => OFF_KW.some(k => r.titulo.toLowerCase().includes(k)));
+  state.dfMain   = validas.filter(r => !OFF_KW.some(k => r.titulo.toLowerCase().includes(k)));
+
+  renderClipPreview();
+}
+
+function getMotivoVermelho(r) {
+  if (CANAIS_EX.some(e => r.canal.toLowerCase().includes(e))) return 'Canal excluído';
+  if (state.tier1Set && !state.tier1Set.has(r.veiculo.toLowerCase().trim())) return 'Não é Tier 1';
+  if (['sim','yes','true','1'].includes(r.release.toLowerCase())) return 'Press release pago';
+  return '';
+}
+
+function normalizeEmpresa(canal) {
+  const c = canal.toLowerCase();
+  if (c.includes('loft') || c.includes('foxter')) return 'Loft';
+  if (c.includes('zap') || c.includes('olx') || c.includes('viva real')) return 'ZAP';
+  if (c.includes('quintoandar') || c.includes('quinto andar') || c.includes('imovelweb')) return 'QuintoAndar';
+  if (c.includes('superlógica') || c.includes('superlogica')) return 'Superlógica';
+  if (c.includes('creditas')) return 'Creditas';
+  if (c.includes('porto seguro')) return 'Porto Seguro';
+  return canal;
+}
+
+function fmtDate(v) {
+  if (!v) return state.dataClipping;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) return v;
+  try { const d = new Date(v); if (!isNaN(d)) return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`; } catch(e) {}
+  return v;
+}
+
+function renderClipPreview() {
+  const { df, dfRed, dfMain, dfDouble } = state;
+  document.getElementById('clipSummary').innerHTML =
+    `📊 <strong>${df.length}</strong> matérias carregadas &nbsp;·&nbsp; ` +
+    `<strong style="color:#f87171">${dfRed.length}</strong> excluídas &nbsp;·&nbsp; ` +
+    `<strong style="color:var(--orange)">${dfMain.length}</strong> para avaliação &nbsp;·&nbsp; ` +
+    `<strong style="color:#93c5fd">${dfDouble.length}</strong> double check`;
+  document.getElementById('estimativaLabel').textContent =
+    `Estimativa: ~${Math.max(1,Math.floor(dfMain.length*5/60))}–${Math.max(2,Math.floor(dfMain.length*8/60))} min`;
+
+  document.getElementById('clipTableBody').innerHTML = df.slice(0,100).map((r,i) => {
+    const s = r.motivo_vermelho
+      ? `<span class="badge badge-red">❌ ${esc(r.motivo_vermelho)}</span>`
+      : OFF_KW.some(k => r.titulo.toLowerCase().includes(k))
+        ? `<span class="badge badge-yellow">⚠ Double Check</span>`
+        : `<span class="badge badge-green">✓ Avaliar</span>`;
+    return `<tr><td>${i+1}</td><td title="${esc(r.titulo)}">${esc(r.titulo.slice(0,55))}${r.titulo.length>55?'…':''}</td><td>${esc(r.veiculo)}</td><td>${esc(r.data)}</td><td>${esc(r.empresa)}</td><td>${s}</td></tr>`;
+  }).join('');
+
+  markDrop('clipDrop', `✓ ${df.length} matérias carregadas`, 'Arquivo pronto');
+  document.getElementById('clipPreview').style.display = 'block';
+}
+
+// ═══ CLAUDE API ═══════════════════════════════════════
+async function callClaude(prompt, maxTokens = 900) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': state.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }),
+  });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${r.status}`); }
+  return (await r.json()).content[0].text;
+}
+
+async function fetchText(url) {
+  if (!url || !url.startsWith('http')) return '';
+  try {
+    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) });
+    const json = await res.json();
+    const doc = new DOMParser().parseFromString(json.contents || '', 'text/html');
+    ['script','style','nav','header','footer','aside'].forEach(t => doc.querySelectorAll(t).forEach(el => el.remove()));
+    return Array.from(doc.querySelectorAll('p')).map(p => p.textContent.trim()).filter(Boolean).join(' ').slice(0, 4500);
+  } catch { return ''; }
+}
+
+const PROMPT_TPL = `Você é um especialista em avaliação de PR Score para empresas do mercado imobiliário brasileiro.
+
+Avalie a matéria abaixo e preencha todos os campos solicitados.
+
+EMPRESA MONITORADA: {empresa}
+TÍTULO: {titulo}
+VEÍCULO: {veiculo}
+TIPO DE MÍDIA: {tipo_midia}
+CONTEÚDO:
+{conteudo}
+
+---
+
+## FILTRO INICIAL
+Se a matéria for release empresarial explícito, conteúdo patrocinado ou segmento fora do core imobiliário: protagonismo = 'Excluído' e explicar em obs. EXCEÇÃO: releases de terceiros citando a marca organicamente: MANTER.
+
+## CRITÉRIOS PRINCIPAIS (não-cumulativos)
+Verifique se pelo menos UM é atendido. Se nenhum: protagonismo = 'Menção', soma = 0.
+Se algum: protagonismo = 'Destaque', soma começa em 1.
+
+1. Porta-voz Ativo: 3+ frases com aspas diretas OU artigo assinado pelo porta-voz.
+2. Espaço Qualificado: 5+ frases OU 8+ linhas referenciando a marca.
+3. Densidade: trechos da marca ocupam 30%+ do texto.
+4. Fontes de Dados: marca citada como fonte/pesquisa.
+5. Colunas Curtas: nota ≤300 caracteres onde a marca é protagonista.
+6. Lives: 1.000+ visualizações. [SINALIZAR COMO HUMANO]
+7. Anúncios Governamentais: citação em anúncio de governo federal/estadual/capital.
+
+## CRITÉRIOS EXTRAS (cumulativos, +1 cada)
+8. Protagonismo Editorial: +1 por local: título, chapéu, subtítulo, linha fina (máx +4).
+9. Volume de Menções: 6+ menções nominais: +1.
+10. CTA/Link: 'Leia mais' direcionando para matéria da marca: +1 por ocorrência.
+11. Recursos Visuais: +1 por TIPO diferente de imagem. [VER HUMANO se não confirmável]
+12. Gráficos/Tabelas: +1 por TIPO diferente. [VER HUMANO se não confirmável]
+13. Páginas Impressas: +1 por página física adicional (só jornais/revistas físicas).
+14. Capas e Redes Sociais: [SEMPRE ver humano]
+15. Audiovisual: [ver humano se rádio/TV/podcast; senão 0]
+16. Protocolo 10+ trechos: [SEMPRE ver humano]
+
+Responda EXCLUSIVAMENTE em JSON (sem texto antes ou depois):
+{
+  "protagonismo": "Destaque | Menção | Destaque Negativo | Menção Negativa | Excluído",
+  "criterio_ativado": "1 a 7 ou nenhum",
+  "criterio_8": 0,
+  "criterio_9": 0,
+  "criterio_10": 0,
+  "criterio_11": 0,
+  "criterio_12": 0,
+  "criterio_13": 0,
+  "criterio_14": "ver humano",
+  "criterio_15": 0,
+  "criterio_16": "ver humano",
+  "soma": 0,
+  "pr_tec_produto": false,
+  "pr_puro_imobis": false,
+  "data": true,
+  "data_carona": false,
+  "tema": "",
+  "subtema": "",
+  "produto": "",
+  "obs": "",
+  "cidade": "",
+  "confianca": "alta"
+}
+
+Regras: criterio_14 e criterio_16 são SEMPRE "ver humano". soma = 1 (se Destaque) + soma numérica critérios 8-16 (ignora "ver humano"). Se paywall: obs = "PAYWALL — leitura incompleta", confianca = "baixa". pr_tec_produto e pr_puro_imobis são false para empresas que não são Loft.`;
+
+function emptyRes(obs) {
+  return { protagonismo:'Menção', criterio_ativado:'nenhum', criterio_8:0, criterio_9:0, criterio_10:0, criterio_11:0, criterio_12:0, criterio_13:0, criterio_14:'ver humano', criterio_15:0, criterio_16:'ver humano', soma:0, pr_tec_produto:false, pr_puro_imobis:false, dado_proativo:false, data_carona:false, tema:'', subtema:'', produto:'', obs, cidade:'', confianca:'baixa' };
+}
+
+function needsHuman(res) {
+  return ['criterio_11','criterio_12','criterio_14','criterio_15','criterio_16'].some(k => String(res[k]||'') === 'ver humano')
+    || String(res.obs||'').includes('PAYWALL') || String(res.obs||'').includes('ERRO');
+}
+
+async function avaliar(row) {
+  if (PAYWALL_V.some(p => row.veiculo.toLowerCase().includes(p)))
+    return emptyRes(`PAYWALL — leitura incompleta. Veículo: ${row.veiculo}`);
+  const texto    = await fetchText(row.url_fonte || row.link);
+  const semTexto = !texto;
+  const conteudo = texto || `[Texto indisponível — avalie pelo título: ${row.titulo}]`;
+  const prompt   = PROMPT_TPL.replace('{empresa}',row.empresa).replace('{titulo}',row.titulo).replace('{veiculo}',row.veiculo).replace('{tipo_midia}',row.midia).replace('{conteudo}',conteudo);
+
+  for (let t = 0; t < 3; t++) {
+    try {
+      let raw = await callClaude(prompt, 900);
+      raw = raw.replace(/```json\s*/g,'').replace(/```\s*/g,'').trim();
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('JSON não encontrado');
+      const res = JSON.parse(match[0]);
+      res.dado_proativo = res.data === true || res.data === 'true';
+      delete res.data;
+      if (semTexto) { res.obs = [res.obs,'SEM_TEXTO — link inacessível'].filter(Boolean).join('; '); res.confianca = 'baixa'; }
+      return res;
+    } catch(e) {
+      if (t < 2) { log(`  ⚠ Tentativa ${t+1} falhou (${e.message}). Retentando...`, 'warn'); await sleep(2000*(t+1)); }
+      else        { log(`  ✗ Erro: ${e.message}`, 'err'); return emptyRes(`ERRO — ${e.message.slice(0,120)}`); }
+    }
+  }
+}
+
+// ═══ PROCESSING ═══════════════════════════════════════
+async function startProcessing() {
+  goToStep(2);
+  state.dfFinal = [];
+  const total = state.dfMain.length;
+  let nDest=0, nMenc=0, nNeg=0, nHum=0;
+
+  log(`Iniciando avaliação de ${total} matérias com Claude...`, 'ok');
+
+  for (let i = 0; i < total; i++) {
+    const row = state.dfMain[i];
+    log(`[${i+1}/${total}] ${row.titulo.slice(0,65)}...`);
+    const res = await avaliar(row);
+    state.dfFinal.push({ ...row, ...res });
+
+    const p = res.protagonismo || '';
+    if (p === 'Destaque') nDest++; else if (p.includes('Negativo')) nNeg++; else nMenc++;
+    if (needsHuman(res)) nHum++;
+
+    const pct = Math.round((i+1)/total*100);
+    document.getElementById('progressBar').style.width = pct+'%';
+    document.getElementById('progressPct').textContent = pct+'%';
+    document.getElementById('progressText').textContent = `Avaliando ${i+1}/${total}...`;
+    document.getElementById('statDestaque').textContent = nDest;
+    document.getElementById('statMencao').textContent   = nMenc;
+    document.getElementById('statNeg').textContent      = nNeg;
+    document.getElementById('statHumano').textContent   = nHum;
   }
 
-  const rm = document.getElementById('rmFile');
-  if (rm) rm.addEventListener('click', e=>{ e.stopPropagation(); S.file=null; render(); });
-
-  const btnP = document.getElementById('btnProcessar');
-  if (btnP) btnP.addEventListener('click', processar);
-
-  const btnB = document.getElementById('btnBaixar');
-  if (btnB) btnB.addEventListener('click', baixarXlsx);
-
-  const btnN = document.getElementById('btnNova');
-  if (btnN) btnN.addEventListener('click', ()=>{ S.results=null; S.file=null; render(); });
+  log('Avaliação concluída! Gerando planilha...', 'ok');
+  document.getElementById('progressText').textContent = 'Concluído!';
+  buildXlsx();
+  computeScores(state.dfFinal);
+  renderReviewPanel();
+  document.getElementById('processingDone').style.display = 'block';
 }
 
-render();
+// ═══ XLSX OUTPUT ═════════════════════════════════════
+function buildXlsx() {
+  const wb = XLSX.utils.book_new();
+
+  const HEADERS = ['Índice','Mês','Título','Veículo','Data','Link','Empresa',
+    'Protagonismo (com base nos crit 1 a 7, decide)','Conta pra gente qual foi o critério',
+    '8','9','10','11','12','13','14','15','16','soma (destaque + bonus)',
+    'PR Tec+Produto','PR Puro Imobis','Data','Data Carona','Retranca.- humano',
+    'Tema','Subtema','Produto','OBS','Cidade','Estado'];
+
+  const rows = [HEADERS, ...state.dfFinal.map((r,i) => [
+    i+1, r.mes, r.titulo, r.veiculo, r.data||state.dataClipping, r.link, r.empresa,
+    r.protagonismo||'Menção', r.criterio_ativado||'nenhum',
+    r.criterio_8||0, r.criterio_9||0, r.criterio_10||0, r.criterio_11||0,
+    r.criterio_12||0, r.criterio_13||0, r.criterio_14||'ver humano',
+    r.criterio_15||0, r.criterio_16||'ver humano', r.soma||0,
+    r.pr_tec_produto?'TRUE':'FALSE', r.pr_puro_imobis?'TRUE':'FALSE',
+    r.dado_proativo?'TRUE':'FALSE', r.data_carona?'TRUE':'FALSE', '',
+    r.tema||'', r.subtema||'', r.produto||'', r.obs||'', r.cidade||'', r.estado||'',
+  ])];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Gabarito Dashboard');
+
+  const totRows = [['PR Score — Totais'], [], ['Empresa','Pontos','Destaques']];
+  COMPANIES.forEach(e => totRows.push([e, state.pts[e]||0, (state.dests[e]||[]).length]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(totRows), 'Totais');
+
+  if (state.dfDouble.length) {
+    const dc = [['Título','Veículo','Data','Canal','Empresa','Link','OBS'],
+      ...state.dfDouble.map(r => [r.titulo,r.veiculo,r.data,r.canal,r.empresa,r.link,'Possível off-topic'])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dc), 'Double Check');
+  }
+
+  const data = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+  state.generatedBlob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+function downloadXlsx() {
+  if (!state.generatedBlob) { alert('Planilha não gerada ainda.'); return; }
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(state.generatedBlob), download: `PR_Score_${state.dataClipping.replace(/\//g,'-')}.xlsx` });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ═══ REVIEW PANEL ════════════════════════════════════
+function computeScores(rows) {
+  COMPANIES.forEach(e => { state.pts[e] = 0; state.dests[e] = []; });
+  rows.forEach(r => {
+    if (r.protagonismo === 'Destaque' && state.pts[r.empresa] !== undefined) {
+      state.pts[r.empresa]++;
+      state.dests[r.empresa].push(r);
+    }
+  });
+}
+
+function renderReviewPanel() {
+  const { dfFinal, dfRed, pts } = state;
+  const nHum = dfFinal.filter(needsHuman).length;
+  document.getElementById('reviewStats').innerHTML =
+    `<div class="stat-chip orange"><div class="val">${dfFinal.length}</div><div class="lbl">Avaliadas</div></div>` +
+    `<div class="stat-chip green"><div class="val">${dfFinal.filter(r=>r.protagonismo==='Destaque').length}</div><div class="lbl">Destaques</div></div>` +
+    `<div class="stat-chip red"><div class="val">${dfRed.length}</div><div class="lbl">Excluídas</div></div>` +
+    `<div class="stat-chip blue"><div class="val">${nHum}</div><div class="lbl">Revisão humana</div></div>`;
+  document.getElementById('downloadLabel').textContent = `PR_Score_${state.dataClipping.replace(/\//g,'-')}.xlsx`;
+  document.getElementById('reviewTableBody').innerHTML = dfFinal.map(r => {
+    const p = r.protagonismo||'Menção';
+    const bc = p==='Destaque'?'badge-green':p.includes('Negativo')?'badge-red':'badge-gray';
+    const hum = needsHuman(r) ? '<span class="badge badge-yellow" title="Revisão humana necessária">⚠</span> ' : '';
+    return `<tr><td>${esc(r.empresa)}</td><td title="${esc(r.titulo)}">${esc(r.titulo.slice(0,50))}…</td><td>${esc(r.veiculo)}</td><td>${hum}<span class="badge ${bc}">${esc(p)}</span></td><td>${r.soma||0}</td><td title="${esc(r.obs||'')}">${esc((r.obs||'').slice(0,40))}${(r.obs||'').length>40?'…':''}</td></tr>`;
+  }).join('');
+}
+
+// ═══ VALIDATION ══════════════════════════════════════
+function approveResults() { buildOutputs(state.pts, state.dests); }
+
+function showRejectUpload() {
+  document.getElementById('rejectUploadArea').style.display = 'block';
+  document.getElementById('rejectUploadArea').scrollIntoView({ behavior: 'smooth' });
+}
+
+function handleRevFile(file) {
+  state.revisedFile = file;
+  markDrop('revDrop', `✓ ${file.name}`, 'Pronto para usar');
+  document.getElementById('btnUseRevised').disabled = false;
+}
+
+function useRevisedFile() {
+  readFileAsArray(state.revisedFile, bytes => {
+    const wb = XLSX.read(bytes, { type: 'array' });
+    const sn = wb.SheetNames.find(n => n === 'Gabarito Dashboard') || wb.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: false });
+    if (rows.length < 2) { alert('Planilha revisada vazia ou sem aba "Gabarito Dashboard".'); return; }
+
+    const h  = rows[0].map(String);
+    const iE = h.findIndex(x => x.includes('Empresa'));
+    const iP = h.findIndex(x => x.includes('Protagonismo'));
+    const iT = h.findIndex(x => x.includes('Título'));
+    const iV = h.findIndex(x => x.includes('Veículo'));
+    const iD = h.findIndex(x => x === 'Data');
+    const iL = h.findIndex(x => x === 'Link');
+    const iS = h.findIndex(x => x.includes('soma'));
+
+    const pts = {}, dests = {};
+    COMPANIES.forEach(e => { pts[e]=0; dests[e]=[]; });
+    rows.slice(1).forEach(row => {
+      const p = String(row[iP]||''), e = String(row[iE]||'');
+      if (p==='Destaque' && pts[e]!==undefined) {
+        pts[e]++;
+        dests[e].push({ titulo:row[iT]||'', veiculo:row[iV]||'', data:row[iD]||'', link:row[iL]||'', soma:row[iS]||1 });
+      }
+    });
+    buildOutputs(pts, dests);
+  });
+}
+
+// ═══ OUTPUTS ═════════════════════════════════════════
+function buildOutputs(pts, dests) {
+  state.pts = pts; state.dests = dests;
+
+  document.getElementById('scorecardGrid').innerHTML = COMPANIES.map(e => {
+    const c = COLORS[e];
+    return `<div class="score-card" style="border-top:3px solid ${c}"><div class="company" style="color:${c}">${EMOJIS[e]} ${e}</div><div class="pts" style="color:${c}">${pts[e]}</div><div class="pts-label">pontos</div></div>`;
+  }).join('');
+
+  let wa = `📊 PR Score — ${state.dataClipping}\n\n`;
+  COMPANIES.forEach(e => { wa += `${EMOJIS[e]} ${e}: ${pts[e]} pt${pts[e]!==1?'s':''}\n`; });
+  if (dests['Loft']?.length) {
+    wa += `\n📰 Destaques Loft do dia:\n`;
+    dests['Loft'].forEach(d => { wa += `• ${d.titulo} - ${d.veiculo} ${d.link||''}\n`; });
+  }
+  state.waText = wa;
+  document.getElementById('waBox').textContent = wa;
+
+  const html = buildEmail(pts, dests);
+  state.htmlEmail = html;
+  document.getElementById('emailFrame').srcdoc = html;
+
+  goToStep(4);
+}
+
+function buildEmail(pts, dests) {
+  const placar = COMPANIES.map(e => {
+    const c = COLORS[e];
+    return `<td style="text-align:center;padding:16px 20px"><div style="font-size:28px;font-weight:800;color:${c};font-family:Arial,sans-serif">${pts[e]}</div><div style="font-size:12px;color:#888;margin-top:2px">${e}</div></td>`;
+  }).join('');
+
+  const secoes = COMPANIES.map(e => {
+    const c = COLORS[e], ds = dests[e]||[];
+    const itens = ds.length === 0
+      ? `<p style="color:#999;font-style:italic;margin:0">Sem destaques hoje.</p>`
+      : ds.map(d => `<div style="border-left:3px solid ${c};padding:10px 16px;margin-bottom:10px;background:#f9f9f9"><a href="${esc(String(d.link||'#'))}" style="color:#111;font-weight:600;font-size:15px;text-decoration:none">${esc(String(d.titulo||''))}</a><div style="margin-top:4px;font-size:13px;color:#666">${esc(String(d.veiculo||''))} · ${esc(String(d.data||''))}<span style="background:${c};color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:6px">${parseInt(d.soma)||1} pt${parseInt(d.soma)!==1?'s':''}</span></div></div>`).join('');
+    return `<div style="margin-bottom:28px"><h2 style="color:${c};border-bottom:2px solid ${c};padding-bottom:6px;font-family:Arial,sans-serif;font-size:17px">${EMOJIS[e]} ${e} <span style="font-size:13px;font-weight:normal;color:#888">— ${pts[e]} pontos</span></h2>${itens}</div>`;
+  }).join('');
+
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>PR Score — ${state.dataClipping}</title></head><body style="font-family:Arial,sans-serif;max-width:660px;margin:0 auto;padding:24px;color:#222;background:#fff"><div style="background:#FF6B35;padding:20px 24px;border-radius:8px;margin-bottom:24px"><h1 style="color:#fff;margin:0;font-size:22px;font-weight:800">📊 PR Score</h1><p style="color:#fff;margin:4px 0 0;opacity:.9;font-size:14px">${state.dataClipping}</p></div><table style="width:100%;border-collapse:collapse;background:#f5f5f5;border-radius:8px;margin-bottom:28px"><tr>${placar}</tr></table>${secoes}<div style="border-top:1px solid #eee;padding-top:14px;font-size:12px;color:#999;text-align:center">PR Score · Loft · Time de PR</div></body></html>`;
+}
+
+// ═══ COPY / DOWNLOAD ═════════════════════════════════
+function copyWa()   { navigator.clipboard.writeText(state.waText).then(()=>flash('btnCopyWa','✓ Copiado!','Copiar')); }
+function copyHtml() { navigator.clipboard.writeText(state.htmlEmail).then(()=>flash('btnCopyHtml','✓ Copiado!','Copiar HTML')); }
+function flash(id, msg, orig) {
+  const b = document.getElementById(id); b.textContent = msg; b.classList.add('copied');
+  setTimeout(()=>{ b.textContent=orig; b.classList.remove('copied'); }, 2000);
+}
+function downloadEmail() {
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([state.htmlEmail],{type:'text/html'})), download: `email_pr_score_${state.dataClipping.replace(/\//g,'_')}.html` });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ═══ UTILS ═══════════════════════════════════════════
+function esc(s)   { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function pad(n)   { return String(n).padStart(2,'0'); }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function readFileAsArray(file, cb) {
+  const fr = new FileReader();
+  fr.onload = e => cb(new Uint8Array(e.target.result));
+  fr.readAsArrayBuffer(file);
+}
+
+function markDrop(dropId, text, sub) {
+  const drop = document.getElementById(dropId);
+  drop.classList.add('has-file');
+  drop.querySelector('.dropzone-text').textContent = text;
+  drop.querySelector('.dropzone-sub').textContent  = sub;
+}
+
+function log(msg, type='') {
+  const box = document.getElementById('logBox');
+  if (!box) return;
+  const ts  = new Date().toLocaleTimeString('pt-BR');
+  const div = Object.assign(document.createElement('div'), { className: `log-line ${type}` });
+  div.innerHTML = `<span class="ts">${ts}</span><span class="msg">${esc(msg)}</span>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
 </script>
 </body>
 </html>

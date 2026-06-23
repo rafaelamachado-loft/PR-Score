@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PR Score — Loft (Local)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --orange: #FF6B35; --orange-glow: rgba(255,107,53,0.18);
+      --bg: #0B0B0B; --surface: #161616; --surface2: #1E1E1E;
+      --border: #2C2C2C; --border-hi: #3C3C3C;
+      --text: #F2F2F2; --text-muted: #888; --text-dim: #555;
+      --green: #22C55E; --red: #EF4444; --blue: #3B82F6; --radius: 12px;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.6; }
+    .app { min-height: 100vh; display: flex; flex-direction: column; }
+
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-mark { width: 34px; height: 34px; background: var(--orange); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: #fff; font-family: 'Space Grotesk', sans-serif; }
+    .logo-text { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 15px; }
+    .logo-sub { font-size: 11px; color: var(--text-muted); }
+    .topbar-right { margin-left: auto; }
+    .api-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 5px 12px; font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+    .api-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+    .api-badge.ok .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+    .main { flex: 1; display: grid; grid-template-columns: 260px 1fr; max-width: 1240px; margin: 0 auto; width: 100%; padding: 32px 24px; gap: 32px; }
+    .sidebar { position: sticky; top: 84px; align-self: start; }
+    .steps { display: flex; flex-direction: column; gap: 4px; }
+    .step { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius); }
+    .step-num { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--text-dim); flex-shrink: 0; transition: all .2s; background: var(--bg); }
+    .step.active .step-num { border-color: var(--orange); color: var(--orange); background: var(--orange-glow); box-shadow: 0 0 0 3px var(--orange-glow); }
+    .step.done .step-num { border-color: var(--green); background: var(--green); color: #fff; }
+    .step-label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+    .step.active .step-label { color: var(--text); }
+    .step-connector { width: 2px; height: 20px; background: var(--border); margin: 2px 0 2px 26px; border-radius: 1px; }
+    .step-connector.done { background: var(--green); }
+
+    .content { min-width: 0; }
+    .panel { display: none; }
+    .panel.active { display: block; animation: fadeIn .25s ease; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform:none; } }
+    .panel-title { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .panel-subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 28px; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+    .card-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 14px; }
+
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+    .field input[type=date] { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px; font-family: inherit; outline: none; transition: border-color .15s; }
+    .field input:focus { border-color: var(--orange); }
+    .field .hint { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .15s; font-family: inherit; }
+    .btn-primary { background: var(--orange); color: #fff; }
+    .btn-primary:hover { background: #ff8055; transform: translateY(-1px); box-shadow: 0 4px 16px var(--orange-glow); }
+    .btn-primary:disabled { background: #555; color: #999; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border-hi); }
+    .btn-outline:hover { border-color: var(--orange); color: var(--orange); background: var(--orange-glow); }
+    .btn-lg { padding: 14px 28px; font-size: 15px; }
+    .btn-sm { padding: 7px 14px; font-size: 12px; }
+
+    .dropzone { border: 2px dashed var(--border-hi); border-radius: var(--radius); padding: 40px 24px; text-align: center; cursor: pointer; transition: all .2s; background: var(--surface2); }
+    .dropzone:hover, .dropzone.drag-over { border-color: var(--orange); background: var(--orange-glow); }
+    .dropzone.has-file { border-color: var(--green); border-style: solid; background: rgba(34,197,94,.08); }
+    .dropzone-icon { font-size: 36px; margin-bottom: 10px; }
+    .dropzone-text { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .dropzone-sub { font-size: 13px; color: var(--text-muted); }
+    .dropzone input[type=file] { display: none; }
+
+    .progress-wrap { margin-bottom: 24px; }
+    .progress-bar-outer { background: var(--surface2); border-radius: 100px; height: 6px; overflow: hidden; }
+    .progress-bar-inner { background: var(--orange); height: 100%; border-radius: 100px; transition: width .4s ease; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+    .log-box { background: #0D0D0D; border: 1px solid var(--border); border-radius: 8px; padding: 16px; height: 260px; overflow-y: auto; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.7; }
+    .log-line { display: flex; gap: 10px; }
+    .log-line .ts { color: var(--text-dim); flex-shrink: 0; }
+    .log-line.ok .msg { color: #4ade80; }
+    .log-line.warn .msg { color: #facc15; }
+    .log-line.err .msg { color: #f87171; }
+    .log-line .msg { color: #ccc; }
+
+    .stats-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    .stat-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; min-width: 100px; }
+    .stat-chip .val { font-size: 22px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+    .stat-chip .lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .stat-chip.orange .val { color: var(--orange); }
+    .stat-chip.green .val { color: var(--green); }
+    .stat-chip.red .val { color: var(--red); }
+    .stat-chip.blue .val { color: var(--blue); }
+
+    .table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: var(--surface2); }
+    thead th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface2); }
+    tbody td { padding: 10px 14px; font-size: 13px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 100px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: rgba(34,197,94,.15); color: #4ade80; }
+    .badge-gray { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+    .badge-red { background: rgba(239,68,68,.15); color: #f87171; }
+    .badge-yellow { background: rgba(250,204,21,.15); color: #fbbf24; }
+
+    .validation-box { display: flex; gap: 16px; flex-wrap: wrap; }
+    .val-btn-card { flex: 1; min-width: 220px; border-radius: var(--radius); padding: 28px 24px; text-align: center; cursor: pointer; transition: all .2s; border: 2px solid var(--border); background: var(--surface2); }
+    .val-btn-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+    .val-btn-card.approve { border-color: var(--green); }
+    .val-btn-card.approve:hover { background: rgba(34,197,94,.08); }
+    .val-btn-card.reject { border-color: #f59e0b; }
+    .val-btn-card.reject:hover { background: rgba(245,158,11,.08); }
+    .val-btn-card .icon { font-size: 42px; margin-bottom: 12px; }
+    .val-btn-card .label { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .val-btn-card .desc { font-size: 13px; color: var(--text-muted); }
+
+    .output-section { margin-bottom: 32px; }
+    .output-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .output-title { font-size: 16px; font-weight: 700; }
+    .wa-box { background: #075E54; border-radius: 12px; padding: 20px; white-space: pre-wrap; font-size: 14px; line-height: 1.6; color: #fff; max-height: 320px; overflow-y: auto; }
+    .email-preview { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .email-preview iframe { width: 100%; height: 440px; border: none; background: #fff; }
+
+    .copy-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); }
+    .copy-btn:hover { border-color: var(--orange); color: var(--orange); }
+    .copy-btn.copied { border-color: var(--green); color: var(--green); }
+
+    .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .score-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; text-align: center; }
+    .score-card .company { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .score-card .pts { font-size: 32px; font-weight: 800; font-family: 'Space Grotesk', sans-serif; }
+    .score-card .pts-label { font-size: 11px; color: var(--text-muted); }
+
+    .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+    .alert-green { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3); color: #86efac; }
+    .alert-orange { background: var(--orange-glow); border: 1px solid rgba(255,107,53,.3); color: #ffd0b5; }
+    .alert-red { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); color: #fca5a5; }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+    .mb-8 { margin-bottom: 8px; }
+    .mb-16 { margin-bottom: 16px; }
+    .mb-24 { margin-bottom: 24px; }
+    .flex { display: flex; }
+    .gap-8 { gap: 8px; }
+    .gap-12 { gap: 12px; }
+    .items-center { align-items: center; }
+    .text-muted { color: var(--text-muted); }
+    .text-sm { font-size: 12px; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-mark">L</div>
+      <div>
+        <div class="logo-text">PR Score</div>
+        <div class="logo-sub">Automação Loft · Local</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="api-badge" id="apiBadge">
+        <span class="dot"></span>
+        <span id="apiStatus">Verificando servidor...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <aside class="sidebar">
+      <div class="steps">
+        <div class="step active" data-step="0"><div class="step-num">1</div><div class="step-label">Configuração</div></div>
+        <div class="step-connector" id="conn-0"></div>
+        <div class="step" data-step="1"><div class="step-num">2</div><div class="step-label">Upload Clipadora</div></div>
+        <div class="step-connector" id="conn-1"></div>
+        <div class="step" data-step="2"><div class="step-num">3</div><div class="step-label">Avaliação Claude</div></div>
+        <div class="step-connector" id="conn-2"></div>
+        <div class="step" data-step="3"><div class="step-num">4</div><div class="step-label">Download &amp; Revisão</div></div>
+        <div class="step-connector" id="conn-3"></div>
+        <div class="step" data-step="4"><div class="step-num">5</div><div class="step-label">WhatsApp &amp; E-mail</div></div>
+      </div>
+    </aside>
+
+    <div class="content">
+
+      <!-- PANEL 0: CONFIG -->
+      <div class="panel active" id="panel-0">
+        <div class="panel-title">Configuração</div>
+        <div class="panel-subtitle">Sem chave de API aqui — o servidor local cuida disso.</div>
+
+        <div class="card" id="serverStatusCard">
+          <div class="card-title">Status do Servidor</div>
+          <div id="serverMsg" class="alert alert-orange">⏳ Verificando conexão com http://localhost:5000...</div>
+          <div class="text-sm text-muted" style="margin-top:8px">
+            Certifique-se de que o servidor está rodando:<br>
+            <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--orange)">python server.py</code>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Data do Clipping</div>
+          <div class="field">
+            <label>Data</label>
+            <input type="date" id="dataClipping" />
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Lista Tier 1 (opcional)</div>
+          <p class="text-muted text-sm mb-16">Faça upload da planilha Tier 1 para filtrar veículos. Se não enviar, nenhum veículo será excluído por esse critério.</p>
+          <div class="dropzone" id="tier1Drop" onclick="document.getElementById('tier1File').click()">
+            <div class="dropzone-icon">📋</div>
+            <div class="dropzone-text">Hackaton_Tier_1__Loft_1.xlsx</div>
+            <div class="dropzone-sub">Clique ou arraste aqui</div>
+            <input type="file" id="tier1File" accept=".xlsx,.xls">
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-lg" id="btnNext" onclick="goToStep(1)" disabled>
+          Avançar para Upload →
+        </button>
+      </div>
+
+      <!-- PANEL 1: UPLOAD -->
+      <div class="panel" id="panel-1">
+        <div class="panel-title">Upload do Clipping</div>
+        <div class="panel-subtitle">Envie a planilha exportada da Clipadora (.xlsx). Cabeçalhos devem estar na linha 4, aba "Matérias".</div>
+        <div class="card">
+          <div class="dropzone" id="clipDrop" onclick="document.getElementById('clipFile').click()">
+            <div class="dropzone-icon">📂</div>
+            <div class="dropzone-text">Planilha Clipadora</div>
+            <div class="dropzone-sub">Clique ou arraste o arquivo .xlsx aqui</div>
+            <input type="file" id="clipFile" accept=".xlsx,.xls">
+          </div>
+        </div>
+        <div id="clipPreview" style="display:none">
+          <div class="alert alert-green" id="clipSummary"></div>
+          <div class="card" style="padding:0">
+            <div class="table-wrap" style="max-height:320px;overflow-y:auto">
+              <table>
+                <thead><tr><th>#</th><th>Título</th><th>Veículo</th><th>Data</th><th>Empresa</th><th>Status</th></tr></thead>
+                <tbody id="clipTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="flex gap-12 items-center" style="margin-top:20px">
+            <button class="btn btn-primary btn-lg" onclick="startProcessing()">▶ Iniciar Avaliação com Claude</button>
+            <span class="text-muted text-sm" id="estimativaLabel"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 2: PROCESSING -->
+      <div class="panel" id="panel-2">
+        <div class="panel-title">Avaliação em andamento</div>
+        <div class="panel-subtitle">Claude está analisando cada matéria via servidor local.</div>
+        <div class="progress-wrap">
+          <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar" style="width:0%"></div></div>
+          <div class="progress-label"><span id="progressText">Preparando...</span><span id="progressPct">0%</span></div>
+        </div>
+        <div class="stats-row">
+          <div class="stat-chip green"><div class="val" id="statDestaque">0</div><div class="lbl">Destaques</div></div>
+          <div class="stat-chip blue"><div class="val" id="statMencao">0</div><div class="lbl">Menções</div></div>
+          <div class="stat-chip red"><div class="val" id="statNeg">0</div><div class="lbl">Negativos</div></div>
+          <div class="stat-chip orange"><div class="val" id="statHumano">0</div><div class="lbl">Revisão humana</div></div>
+        </div>
+        <div class="log-box" id="logBox"></div>
+        <div id="processingDone" style="display:none;margin-top:20px">
+          <div class="alert alert-green">✅ Avaliação concluída! Planilha gerada e pronta para download.</div>
+          <button class="btn btn-primary btn-lg" style="margin-top:12px" onclick="goToStep(3)">Ir para Download &amp; Revisão →</button>
+        </div>
+      </div>
+
+      <!-- PANEL 3: REVIEW -->
+      <div class="panel" id="panel-3">
+        <div class="panel-title">Download &amp; Revisão Humana</div>
+        <div class="panel-subtitle">Baixe a planilha processada, revise e aprove ou corrija.</div>
+        <div class="card mb-24">
+          <div class="card-title">Planilha Processada</div>
+          <div class="flex gap-12 items-center">
+            <button class="btn btn-primary" onclick="downloadXlsx()">⬇ Baixar Planilha .xlsx</button>
+            <span class="text-muted text-sm" id="downloadLabel"></span>
+          </div>
+        </div>
+        <div class="card mb-24">
+          <div class="card-title">Resumo da Avaliação</div>
+          <div class="stats-row" id="reviewStats"></div>
+          <div class="table-wrap" style="max-height:340px;overflow-y:auto">
+            <table>
+              <thead><tr><th>Empresa</th><th>Título</th><th>Veículo</th><th>Protagonismo</th><th>Soma</th><th>OBS</th></tr></thead>
+              <tbody id="reviewTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Validação Humana</div>
+          <p class="text-muted text-sm mb-16">Revise a planilha e escolha como prosseguir:</p>
+          <div class="validation-box">
+            <div class="val-btn-card approve" onclick="approveResults()">
+              <div class="icon">👍</div>
+              <div class="label">Aprovar Resultados</div>
+              <div class="desc">Usar a avaliação automática do Claude</div>
+            </div>
+            <div class="val-btn-card reject" onclick="showRejectUpload()">
+              <div class="icon">👎</div>
+              <div class="label">Enviar Revisão</div>
+              <div class="desc">Upload da planilha corrigida pelo time de PR</div>
+            </div>
+          </div>
+          <div id="rejectUploadArea" style="display:none;margin-top:20px">
+            <hr class="divider">
+            <div class="card-title mb-8">Upload da planilha revisada</div>
+            <div class="dropzone" id="revDrop" onclick="document.getElementById('revFile').click()">
+              <div class="dropzone-icon">📤</div>
+              <div class="dropzone-text">Planilha revisada pelo time</div>
+              <div class="dropzone-sub">Deve conter a aba "Gabarito Dashboard"</div>
+              <input type="file" id="revFile" accept=".xlsx,.xls">
+            </div>
+            <button class="btn btn-primary" style="margin-top:16px" id="btnUseRevised" onclick="useRevisedFile()" disabled>
+              Gerar outputs com esta planilha →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 4: OUTPUTS -->
+      <div class="panel" id="panel-4">
+        <div class="panel-title">WhatsApp &amp; E-mail</div>
+        <div class="panel-subtitle">Outputs prontos para distribuição.</div>
+        <div class="score-grid" id="scorecardGrid"></div>
+        <div class="output-section">
+          <div class="output-header">
+            <div class="output-title">💬 Mensagem WhatsApp</div>
+            <button class="btn btn-sm btn-outline copy-btn" id="btnCopyWa" onclick="copyWa()">Copiar</button>
+          </div>
+          <div class="wa-box" id="waBox"></div>
+        </div>
+        <div class="output-section">
+          <div class="output-header">
+            <div class="output-title">✉️ HTML do E-mail</div>
+            <div class="flex gap-8">
+              <button class="btn btn-sm btn-outline copy-btn" id="btnCopyHtml" onclick="copyHtml()">Copiar HTML</button>
+              <button class="btn btn-sm btn-outline" onclick="downloadEmail()">⬇ Baixar .html</button>
+            </div>
+          </div>
+          <div class="email-preview"><iframe id="emailFrame" title="Preview do e-mail"></iframe></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  dataClipping: '', tier1Set: null, clipData: null,
+  df: [], dfMain: [], dfRed: [], dfDouble: [], dfFinal: [],
+  pts: {}, dests: {}, htmlEmail: '', waText: '', generatedBlob: null, revisedFile: null,
+};
+
+const COMPANIES = ['Loft', 'QuintoAndar', 'ZAP', 'Superlógica'];
+const COLORS    = { Loft:'#FF6B35', QuintoAndar:'#3B82F6', ZAP:'#22C55E', 'Superlógica':'#A855F7' };
+const EMOJIS    = { Loft:'🟠', QuintoAndar:'🔵', ZAP:'🟢', 'Superlógica':'🟣' };
+const PAYWALL_V = ['valor econômico', 'jornal do comércio'];
+const CANAIS_EX = ['coelho da fonseca', 'lopes', 'assuntos de interesse'];
+const OFF_KW    = ['carro', 'automóvel', 'celular', 'smartphone', 'veículo automotor'];
+
+// ── INIT ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('dataClipping').valueAsDate = new Date();
+  setupDrop('tier1Drop', 'tier1File', handleTier1File);
+  setupDrop('clipDrop',  'clipFile',  handleClipFile);
+  setupDrop('revDrop',   'revFile',   handleRevFile);
+  checkServer();
+});
+
+async function checkServer() {
+  const msg = document.getElementById('serverMsg');
+  const btn = document.getElementById('btnNext');
+  try {
+    const r = await fetch('/api/ping');
+    if (r.ok) {
+      msg.className = 'alert alert-green';
+      msg.textContent = '✅ Servidor conectado — Claude está pronto.';
+      document.getElementById('apiBadge').classList.add('ok');
+      document.getElementById('apiStatus').textContent = 'Servidor local ✓';
+      btn.disabled = false;
+    } else throw new Error();
+  } catch {
+    msg.className = 'alert alert-red';
+    msg.textContent = '❌ Servidor não encontrado em http://localhost:5000. Execute: python server.py';
+    setTimeout(checkServer, 4000);
+  }
+}
+
+// ── STEPS ─────────────────────────────────────────────
+function goToStep(n) {
+  document.querySelectorAll('.panel').forEach((p,i) => p.classList.toggle('active', i===n));
+  document.querySelectorAll('.step').forEach((s,i) => {
+    s.classList.remove('active','done');
+    s.querySelector('.step-num').textContent = i+1;
+    if (i < n) { s.classList.add('done'); s.querySelector('.step-num').textContent = '✓'; }
+    if (i === n) s.classList.add('active');
+  });
+  document.querySelectorAll('.step-connector').forEach((c,i) => c.classList.toggle('done', i<n));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── DROPS ─────────────────────────────────────────────
+function setupDrop(dropId, inputId, handler) {
+  const drop = document.getElementById(dropId), inp = document.getElementById(inputId);
+  if (!drop || !inp) return;
+  inp.addEventListener('change', e => { if (e.target.files[0]) handler(e.target.files[0]); });
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handler(e.dataTransfer.files[0]); });
+}
+
+function handleTier1File(file) {
+  readArr(file, bytes => {
+    const wb = XLSX.read(bytes, { type:'array' }), set = new Set();
+    wb.SheetNames.forEach(sn => XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false})
+      .forEach(row => row.forEach(cell => { const v=String(cell||'').trim().toLowerCase(); if(v) set.add(v); })));
+    state.tier1Set = set;
+    markDrop('tier1Drop', `✓ ${file.name}`, `${set.size} veículos carregados`);
+  });
+}
+
+// ── CLIPADORA ─────────────────────────────────────────
+function handleClipFile(file) {
+  readArr(file, bytes => { state.clipData = bytes; parseClip(); });
+}
+
+function parseClip() {
+  const wb = XLSX.read(state.clipData, { type:'array', cellDates:true });
+  const sn = wb.SheetNames.find(n => n==='Matérias') || wb.SheetNames[0];
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header:1, raw:false, dateNF:'dd/mm/yyyy' });
+  if (raw.length < 5) { alert('Planilha parece vazia ou com formato inesperado.'); return; }
+
+  const get = (r,i) => (r[i]!==undefined && r[i]!==null) ? String(r[i]).trim() : '';
+  const df = raw.slice(4).map(r => {
+    const titulo = get(r,0); if (!titulo) return null;
+    return { titulo, veiculo:get(r,1), data_raw:get(r,2), canal:get(r,6), estado:get(r,11), midia:get(r,12), url_fonte:get(r,26), release:get(r,22), mat_repetida:get(r,23), link:get(r,27) };
+  }).filter(Boolean);
+
+  if (!df.length) { alert('Nenhuma matéria encontrada.'); return; }
+  const d = new Date(document.getElementById('dataClipping').value + 'T12:00:00');
+  state.dataClipping = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+
+  df.forEach(r => {
+    r.data    = fmtDate(r.data_raw);
+    r.mes     = r.data.split('/')[1]?.replace(/^0/,'') || '';
+    r.empresa = normEmp(r.canal);
+    r.motivo_vermelho = getMot(r);
+  });
+  state.df      = df;
+  state.dfRed   = df.filter(r => r.motivo_vermelho);
+  const v = df.filter(r => !r.motivo_vermelho);
+  state.dfDouble = v.filter(r => OFF_KW.some(k => r.titulo.toLowerCase().includes(k)));
+  state.dfMain   = v.filter(r => !OFF_KW.some(k => r.titulo.toLowerCase().includes(k)));
+  renderClip();
+}
+
+function getMot(r) {
+  if (CANAIS_EX.some(e => r.canal.toLowerCase().includes(e))) return 'Canal excluído';
+  if (state.tier1Set && !state.tier1Set.has(r.veiculo.toLowerCase().trim())) return 'Não é Tier 1';
+  if (['sim','yes','true','1'].includes(r.release.toLowerCase())) return 'Press release pago';
+  return '';
+}
+
+function normEmp(canal) {
+  const c = canal.toLowerCase();
+  if (c.includes('loft')||c.includes('foxter')) return 'Loft';
+  if (c.includes('zap')||c.includes('olx')||c.includes('viva real')) return 'ZAP';
+  if (c.includes('quintoandar')||c.includes('quinto andar')||c.includes('imovelweb')) return 'QuintoAndar';
+  if (c.includes('superlógica')||c.includes('superlogica')) return 'Superlógica';
+  if (c.includes('creditas')) return 'Creditas';
+  if (c.includes('porto seguro')) return 'Porto Seguro';
+  return canal;
+}
+
+function fmtDate(v) {
+  if (!v) return state.dataClipping;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) return v;
+  try { const d=new Date(v); if(!isNaN(d)) return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`; } catch {}
+  return v;
+}
+
+function renderClip() {
+  const { df, dfRed, dfMain, dfDouble } = state;
+  document.getElementById('clipSummary').innerHTML =
+    `📊 <strong>${df.length}</strong> matérias · <strong style="color:#f87171">${dfRed.length}</strong> excluídas · <strong style="color:var(--orange)">${dfMain.length}</strong> para avaliação · <strong style="color:#93c5fd">${dfDouble.length}</strong> double check`;
+  document.getElementById('estimativaLabel').textContent =
+    `Estimativa: ~${Math.max(1,Math.floor(dfMain.length*5/60))}–${Math.max(2,Math.floor(dfMain.length*8/60))} min`;
+  document.getElementById('clipTableBody').innerHTML = df.slice(0,100).map((r,i) => {
+    const s = r.motivo_vermelho ? `<span class="badge badge-red">❌ ${esc(r.motivo_vermelho)}</span>`
+      : OFF_KW.some(k=>r.titulo.toLowerCase().includes(k)) ? `<span class="badge badge-yellow">⚠ Double Check</span>`
+      : `<span class="badge badge-green">✓ Avaliar</span>`;
+    return `<tr><td>${i+1}</td><td title="${esc(r.titulo)}">${esc(r.titulo.slice(0,55))}${r.titulo.length>55?'…':''}</td><td>${esc(r.veiculo)}</td><td>${esc(r.data)}</td><td>${esc(r.empresa)}</td><td>${s}</td></tr>`;
+  }).join('');
+  markDrop('clipDrop', `✓ ${df.length} matérias carregadas`, 'Arquivo pronto');
+  document.getElementById('clipPreview').style.display = 'block';
+}
+
+// ── PROCESSING ────────────────────────────────────────
+async function startProcessing() {
+  goToStep(2);
+  state.dfFinal = [];
+  const total = state.dfMain.length;
+  let nD=0, nM=0, nN=0, nH=0;
+  log(`Iniciando avaliação de ${total} matérias...`, 'ok');
+
+  for (let i = 0; i < total; i++) {
+    const row = state.dfMain[i];
+    log(`[${i+1}/${total}] ${row.titulo.slice(0,65)}...`);
+
+    // Fetch article text via server (no CORS)
+    let texto = '';
+    try {
+      const fr = await fetch('/api/fetch-text', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url: row.url_fonte || row.link }) });
+      texto = (await fr.json()).text || '';
+    } catch {}
+
+    // Evaluate via server
+    const res = await avaliarViaServer(row, texto);
+    state.dfFinal.push({ ...row, ...res });
+
+    const p = res.protagonismo || '';
+    if (p==='Destaque') nD++; else if (p.includes('Negativo')) nN++; else nM++;
+    if (needsHuman(res)) nH++;
+
+    const pct = Math.round((i+1)/total*100);
+    document.getElementById('progressBar').style.width = pct+'%';
+    document.getElementById('progressPct').textContent = pct+'%';
+    document.getElementById('progressText').textContent = `Avaliando ${i+1}/${total}...`;
+    document.getElementById('statDestaque').textContent = nD;
+    document.getElementById('statMencao').textContent   = nM;
+    document.getElementById('statNeg').textContent      = nN;
+    document.getElementById('statHumano').textContent   = nH;
+    log(`  ✓ ${res.protagonismo} | soma ${res.soma}`, 'ok');
+  }
+
+  log('Concluído! Gerando planilha...', 'ok');
+  document.getElementById('progressText').textContent = 'Concluído!';
+  buildXlsx();
+  computeScores(state.dfFinal);
+  renderReview();
+  document.getElementById('processingDone').style.display = 'block';
+}
+
+async function avaliarViaServer(row, texto) {
+  const payload = {
+    empresa: row.empresa, titulo: row.titulo, veiculo: row.veiculo,
+    midia: row.midia, conteudo: texto || '',
+  };
+  try {
+    const r = await fetch('/api/evaluate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const json = await r.json();
+    if (json.ok) return json.result;
+    log(`  ⚠ ${json.error}`, 'warn');
+    return emptyRes(json.error || 'Erro desconhecido');
+  } catch(e) {
+    log(`  ✗ ${e.message}`, 'err');
+    return emptyRes(`ERRO — ${e.message}`);
+  }
+}
+
+function emptyRes(obs) {
+  return { protagonismo:'Menção', criterio_ativado:'nenhum', criterio_8:0, criterio_9:0, criterio_10:0, criterio_11:0, criterio_12:0, criterio_13:0, criterio_14:'ver humano', criterio_15:0, criterio_16:'ver humano', soma:0, pr_tec_produto:false, pr_puro_imobis:false, dado_proativo:false, data_carona:false, tema:'', subtema:'', produto:'', obs, cidade:'', confianca:'baixa' };
+}
+
+function needsHuman(res) {
+  return ['criterio_11','criterio_12','criterio_14','criterio_15','criterio_16'].some(k=>String(res[k]||'')==='ver humano')
+    || String(res.obs||'').includes('PAYWALL') || String(res.obs||'').includes('ERRO');
+}
+
+// ── XLSX ──────────────────────────────────────────────
+function buildXlsx() {
+  const wb = XLSX.utils.book_new();
+  const H = ['Índice','Mês','Título','Veículo','Data','Link','Empresa','Protagonismo (com base nos crit 1 a 7, decide)','Conta pra gente qual foi o critério','8','9','10','11','12','13','14','15','16','soma (destaque + bonus)','PR Tec+Produto','PR Puro Imobis','Data','Data Carona','Retranca.- humano','Tema','Subtema','Produto','OBS','Cidade','Estado'];
+  const rows = [H, ...state.dfFinal.map((r,i)=>[i+1,r.mes,r.titulo,r.veiculo,r.data||state.dataClipping,r.link,r.empresa,r.protagonismo||'Menção',r.criterio_ativado||'nenhum',r.criterio_8||0,r.criterio_9||0,r.criterio_10||0,r.criterio_11||0,r.criterio_12||0,r.criterio_13||0,r.criterio_14||'ver humano',r.criterio_15||0,r.criterio_16||'ver humano',r.soma||0,r.pr_tec_produto?'TRUE':'FALSE',r.pr_puro_imobis?'TRUE':'FALSE',r.dado_proativo?'TRUE':'FALSE',r.data_carona?'TRUE':'FALSE','',r.tema||'',r.subtema||'',r.produto||'',r.obs||'',r.cidade||'',r.estado||''])];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Gabarito Dashboard');
+  const tot = [['PR Score — Totais'],[],['Empresa','Pontos','Destaques'],...COMPANIES.map(e=>[e,state.pts[e]||0,(state.dests[e]||[]).length])];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tot), 'Totais');
+  if (state.dfDouble.length) {
+    const dc=[['Título','Veículo','Data','Canal','Empresa','Link','OBS'],...state.dfDouble.map(r=>[r.titulo,r.veiculo,r.data,r.canal,r.empresa,r.link,'Possível off-topic'])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dc), 'Double Check');
+  }
+  state.generatedBlob = new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+
+function downloadXlsx() {
+  if (!state.generatedBlob) return;
+  const a = Object.assign(document.createElement('a'),{href:URL.createObjectURL(state.generatedBlob),download:`PR_Score_${state.dataClipping.replace(/\//g,'-')}.xlsx`});
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+function computeScores(rows) {
+  COMPANIES.forEach(e=>{state.pts[e]=0;state.dests[e]=[];});
+  rows.forEach(r=>{if(r.protagonismo==='Destaque'&&state.pts[r.empresa]!==undefined){state.pts[r.empresa]++;state.dests[r.empresa].push(r);}});
+}
+
+function renderReview() {
+  const { dfFinal, dfRed } = state;
+  const nH = dfFinal.filter(needsHuman).length;
+  document.getElementById('reviewStats').innerHTML =
+    `<div class="stat-chip orange"><div class="val">${dfFinal.length}</div><div class="lbl">Avaliadas</div></div>`+
+    `<div class="stat-chip green"><div class="val">${dfFinal.filter(r=>r.protagonismo==='Destaque').length}</div><div class="lbl">Destaques</div></div>`+
+    `<div class="stat-chip red"><div class="val">${dfRed.length}</div><div class="lbl">Excluídas</div></div>`+
+    `<div class="stat-chip blue"><div class="val">${nH}</div><div class="lbl">Revisão humana</div></div>`;
+  document.getElementById('downloadLabel').textContent = `PR_Score_${state.dataClipping.replace(/\//g,'-')}.xlsx`;
+  document.getElementById('reviewTableBody').innerHTML = dfFinal.map(r=>{
+    const p=r.protagonismo||'Menção', bc=p==='Destaque'?'badge-green':p.includes('Negativo')?'badge-red':'badge-gray';
+    const hum=needsHuman(r)?'<span class="badge badge-yellow" title="Revisão humana">⚠</span> ':'';
+    return `<tr><td>${esc(r.empresa)}</td><td title="${esc(r.titulo)}">${esc(r.titulo.slice(0,50))}…</td><td>${esc(r.veiculo)}</td><td>${hum}<span class="badge ${bc}">${esc(p)}</span></td><td>${r.soma||0}</td><td title="${esc(r.obs||'')}">${esc((r.obs||'').slice(0,40))}${(r.obs||'').length>40?'…':''}</td></tr>`;
+  }).join('');
+}
+
+// ── VALIDATION ────────────────────────────────────────
+function approveResults() { buildOutputs(state.pts, state.dests); }
+function showRejectUpload() { document.getElementById('rejectUploadArea').style.display='block'; document.getElementById('rejectUploadArea').scrollIntoView({behavior:'smooth'}); }
+
+function handleRevFile(file) {
+  state.revisedFile = file;
+  markDrop('revDrop', `✓ ${file.name}`, 'Pronto');
+  document.getElementById('btnUseRevised').disabled = false;
+}
+
+function useRevisedFile() {
+  readArr(state.revisedFile, bytes => {
+    const wb = XLSX.read(bytes,{type:'array'}), sn = wb.SheetNames.find(n=>n==='Gabarito Dashboard')||wb.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false});
+    if (rows.length<2) { alert('Planilha revisada vazia.'); return; }
+    const h=rows[0].map(String);
+    const iE=h.findIndex(x=>x.includes('Empresa')), iP=h.findIndex(x=>x.includes('Protagonismo'));
+    const iT=h.findIndex(x=>x.includes('Título')), iV=h.findIndex(x=>x.includes('Veículo'));
+    const iD=h.findIndex(x=>x==='Data'), iL=h.findIndex(x=>x==='Link'), iS=h.findIndex(x=>x.includes('soma'));
+    const pts={},dests={};
+    COMPANIES.forEach(e=>{pts[e]=0;dests[e]=[];});
+    rows.slice(1).forEach(row=>{
+      const p=String(row[iP]||''),e=String(row[iE]||'');
+      if(p==='Destaque'&&pts[e]!==undefined){pts[e]++;dests[e].push({titulo:row[iT]||'',veiculo:row[iV]||'',data:row[iD]||'',link:row[iL]||'',soma:row[iS]||1});}
+    });
+    buildOutputs(pts, dests);
+  });
+}
+
+// ── OUTPUTS ───────────────────────────────────────────
+function buildOutputs(pts, dests) {
+  state.pts=pts; state.dests=dests;
+  document.getElementById('scorecardGrid').innerHTML = COMPANIES.map(e=>{
+    const c=COLORS[e];
+    return `<div class="score-card" style="border-top:3px solid ${c}"><div class="company" style="color:${c}">${EMOJIS[e]} ${e}</div><div class="pts" style="color:${c}">${pts[e]}</div><div class="pts-label">pontos</div></div>`;
+  }).join('');
+
+  let wa=`📊 PR Score — ${state.dataClipping}\n\n`;
+  COMPANIES.forEach(e=>{wa+=`${EMOJIS[e]} ${e}: ${pts[e]} pt${pts[e]!==1?'s':''}\n`;});
+  if(dests['Loft']?.length){wa+=`\n📰 Destaques Loft do dia:\n`;dests['Loft'].forEach(d=>{wa+=`• ${d.titulo} - ${d.veiculo} ${d.link||''}\n`;});}
+  state.waText=wa;
+  document.getElementById('waBox').textContent=wa;
+
+  const html=buildEmail(pts,dests);
+  state.htmlEmail=html;
+  document.getElementById('emailFrame').srcdoc=html;
+  goToStep(4);
+}
+
+function buildEmail(pts,dests){
+  const placar=COMPANIES.map(e=>`<td style="text-align:center;padding:16px 20px"><div style="font-size:28px;font-weight:800;color:${COLORS[e]};font-family:Arial,sans-serif">${pts[e]}</div><div style="font-size:12px;color:#888;margin-top:2px">${e}</div></td>`).join('');
+  const secoes=COMPANIES.map(e=>{
+    const c=COLORS[e],ds=dests[e]||[];
+    const itens=ds.length===0?`<p style="color:#999;font-style:italic;margin:0">Sem destaques hoje.</p>`:ds.map(d=>`<div style="border-left:3px solid ${c};padding:10px 16px;margin-bottom:10px;background:#f9f9f9"><a href="${esc(String(d.link||'#'))}" style="color:#111;font-weight:600;font-size:15px;text-decoration:none">${esc(String(d.titulo||''))}</a><div style="margin-top:4px;font-size:13px;color:#666">${esc(String(d.veiculo||''))} · ${esc(String(d.data||''))}<span style="background:${c};color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:6px">${parseInt(d.soma)||1} pt${parseInt(d.soma)!==1?'s':''}</span></div></div>`).join('');
+    return `<div style="margin-bottom:28px"><h2 style="color:${c};border-bottom:2px solid ${c};padding-bottom:6px;font-family:Arial,sans-serif;font-size:17px">${EMOJIS[e]} ${e} <span style="font-size:13px;font-weight:normal;color:#888">— ${pts[e]} pontos</span></h2>${itens}</div>`;
+  }).join('');
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>PR Score — ${state.dataClipping}</title></head><body style="font-family:Arial,sans-serif;max-width:660px;margin:0 auto;padding:24px;color:#222;background:#fff"><div style="background:#FF6B35;padding:20px 24px;border-radius:8px;margin-bottom:24px"><h1 style="color:#fff;margin:0;font-size:22px;font-weight:800">📊 PR Score</h1><p style="color:#fff;margin:4px 0 0;opacity:.9;font-size:14px">${state.dataClipping}</p></div><table style="width:100%;border-collapse:collapse;background:#f5f5f5;border-radius:8px;margin-bottom:28px"><tr>${placar}</tr></table>${secoes}<div style="border-top:1px solid #eee;padding-top:14px;font-size:12px;color:#999;text-align:center">PR Score · Loft · Time de PR</div></body></html>`;
+}
+
+// ── COPY ──────────────────────────────────────────────
+function copyWa()   { navigator.clipboard.writeText(state.waText).then(()=>flash('btnCopyWa','✓ Copiado!','Copiar')); }
+function copyHtml() { navigator.clipboard.writeText(state.htmlEmail).then(()=>flash('btnCopyHtml','✓ Copiado!','Copiar HTML')); }
+function flash(id,msg,orig){const b=document.getElementById(id);b.textContent=msg;b.classList.add('copied');setTimeout(()=>{b.textContent=orig;b.classList.remove('copied');},2000);}
+function downloadEmail(){const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([state.htmlEmail],{type:'text/html'})),download:`email_pr_score_${state.dataClipping.replace(/\//g,'_')}.html`});a.click();URL.revokeObjectURL(a.href);}
+
+// ── UTILS ─────────────────────────────────────────────
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function pad(n){return String(n).padStart(2,'0');}
+function readArr(file,cb){const fr=new FileReader();fr.onload=e=>cb(new Uint8Array(e.target.result));fr.readAsArrayBuffer(file);}
+function markDrop(dropId,text,sub){const d=document.getElementById(dropId);d.classList.add('has-file');d.querySelector('.dropzone-text').textContent=text;d.querySelector('.dropzone-sub').textContent=sub;}
+function log(msg,type=''){const box=document.getElementById('logBox');if(!box)return;const ts=new Date().toLocaleTimeString('pt-BR');const div=Object.assign(document.createElement('div'),{className:`log-line ${type}`});div.innerHTML=`<span class="ts">${ts}</span><span class="msg">${esc(msg)}</span>`;box.appendChild(div);box.scrollTop=box.scrollHeight;}
+</script>
+</body>
+</html>

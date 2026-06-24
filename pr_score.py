@@ -354,12 +354,23 @@ h2{{font-size:15px;font-weight:600;border-bottom:2px solid #F05A28;padding-botto
 
 
 def main():
+    import os
+
     if len(sys.argv) < 2:
         print("Uso: python pr_score.py <caminho_para_planilha.xlsx>")
         sys.exit(1)
 
     arquivo = sys.argv[1]
-    client = anthropic.Anthropic()  # lê ANTHROPIC_API_KEY do ambiente
+    api_key = os.environ.get("BIFROST_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        print("❌ Chave de API não encontrada.")
+        print("   Configure com: export BIFROST_API_KEY='sua-chave-aqui'")
+        sys.exit(1)
+
+    client = anthropic.Anthropic(
+        api_key=api_key,
+        base_url="https://proxy.loft.ai/",
+    )
 
     print(f"\n{'='*60}")
     print(f"PR Score — Processando: {arquivo}")

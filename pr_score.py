@@ -633,6 +633,7 @@ def main():
     client = anthropic.Anthropic(
         api_key=api_key,
         base_url="https://proxy.loft.ai/",
+        default_headers={"Authorization": f"Bearer {api_key}"},
     )
 
     print(f"\n{'='*60}")
